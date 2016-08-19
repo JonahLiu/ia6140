@@ -62,23 +62,23 @@ wire [31:0] gpio_o;
 wire [31:0] gpio_t;
 
 // currently unused
-assign phy0_txclk = phy0_rxclk;
-assign phy0_txctl = 1'b0;
-assign phy0_txd = 4'b0;
+//assign phy0_txclk = phy0_rxclk;
+//assign phy0_txctl = 1'b0;
+//assign phy0_txd = 4'b0;
 //assign phy0_mdio = 1'bz;
 //assign phy0_mdc = 1'bz;
 //assign phy0_reset_n = 1'b1;
 
-assign phy1_txclk = phy1_rxclk;
-assign phy1_txctl = 1'b0;
-assign phy1_txd = 4'b0;
+//assign phy1_txclk = phy1_rxclk;
+//assign phy1_txctl = 1'b0;
+//assign phy1_txd = 4'b0;
 //assign phy1_mdio = 1'bz;
 //assign phy1_mdc = 1'bz;
 //assign phy1_reset_n = 1'b1;
 
-assign phy2_txclk = phy2_rxclk;
-assign phy2_txctl = 1'b0;
-assign phy2_txd = 4'b0;
+//assign phy2_txclk = phy2_rxclk;
+//assign phy2_txctl = 1'b0;
+//assign phy2_txd = 4'b0;
 //assign phy2_mdio = 1'bz;
 //assign phy2_mdc = 1'bz;
 //assign phy2_reset_n = 1'b1;
@@ -152,5 +152,33 @@ assign phy2_mdio = gpio_t[17]?1'bz:gpio_o[17];
 assign phy2_reset_n = gpio_t[23]?1'bz:gpio_o[23];
 
 assign gpio_i[31:30] = sw;
+
+rgmii_bypass bypass_0(
+	.rxclk(phy0_rxclk),
+	.rxdat(phy0_rxd),
+	.rxctl(phy0_rxctl),
+	.txclk(phy1_txclk),
+	.txdat(phy1_txd),
+	.txctl(phy1_txctl)
+);
+
+rgmii_bypass bypass_1(
+	.rxclk(phy1_rxclk),
+	.rxdat(phy1_rxd),
+	.rxctl(phy1_rxctl),
+	.txclk(phy0_txclk),
+	.txdat(phy0_txd),
+	.txctl(phy0_txctl)
+);
+
+rgmii_bypass bypass_2(
+	.rxclk(phy2_rxclk),
+	.rxdat(phy2_rxd),
+	.rxctl(phy2_rxctl),
+	.txclk(phy2_txclk),
+	.txdat(phy2_txd),
+	.txctl(phy2_txctl)
+);
+
 endmodule
 

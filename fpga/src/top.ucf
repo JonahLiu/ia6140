@@ -88,21 +88,21 @@ NET phy0_rxclk TNM_NET = "phy0_rxclk";
 TIMESPEC "TS_phy0_rxclk" = PERIOD "phy0_rxclk" 8ns HIGH 50%;
 #TIMEGRP "phy0_rxclk_Rising" = RISING "phy0_rxclk";
 #TIMEGRP "phy0_rxclk_Falling" = FALLING "phy0_rxclk";
-#OFFSET = IN 0 ns VALID 3.5 ns BEFORE phy0_rxclk TIMEGRP phy0_rxclk_Rising;
-#OFFSET = IN -3.5 ns VALID 4.5 ns BEFORE phy0_rxclk TIMEGRP phy0_rxclk_Falling;
+OFFSET = IN 2 ns VALID 4 ns BEFORE phy0_rxclk TIMEGRP phy0_rxclk_Rising;
+OFFSET = IN -2 ns VALID 4 ns BEFORE phy0_rxclk TIMEGRP phy0_rxclk_Falling;
 
 NET phy1_rxclk TNM_NET = "phy1_rxclk";
 TIMESPEC "TS_phy1_rxclk" = PERIOD "phy1_rxclk" 8ns HIGH 50%;
 #TIMEGRP "phy1_rxclk_Rising" = RISING "phy1_rxclk";
 #TIMEGRP "phy1_rxclk_Falling" = FALLING "phy1_rxclk";
-#OFFSET = IN 0 ns VALID 3.5 ns BEFORE phy1_rxclk TIMEGRP phy1_rxclk_Rising;
-#OFFSET = IN -3.5 ns VALID 4.5 ns BEFORE phy1_rxclk TIMEGRP phy1_rxclk_Falling;
+OFFSET = IN 2 ns VALID 4 ns BEFORE phy1_rxclk TIMEGRP phy1_rxclk_Rising;
+OFFSET = IN -2 ns VALID 4 ns BEFORE phy1_rxclk TIMEGRP phy1_rxclk_Falling;
 
 NET phy2_rxclk TNM_NET = "phy2_rxclk";
 TIMESPEC "TS_phy2_rxclk" = PERIOD "phy2_rxclk" 8ns HIGH 50%;
 #TIMEGRP "phy2_rxclk_Rising" = RISING "phy2_rxclk";
 #TIMEGRP "phy2_rxclk_Falling" = FALLING "phy2_rxclk";
-#OFFSET = IN 0 ns VALID 3.5 ns BEFORE phy2_rxclk TIMEGRP phy2_rxclk_Rising;
-#OFFSET = IN -3.5 ns VALID 4.5 ns BEFORE phy2_rxclk TIMEGRP phy2_rxclk_Falling;
+OFFSET = IN 2 ns VALID 4 ns BEFORE phy2_rxclk TIMEGRP phy2_rxclk_Rising;
+OFFSET = IN -2 ns VALID 4 ns BEFORE phy2_rxclk TIMEGRP phy2_rxclk_Falling;
 
 NET "eep_sclk" CLOCK_DEDICATED_ROUTE = FALSE;

@@ -61,6 +61,10 @@
 
 #define PHY_REG_IDL				(3)
 
+#define PHY_REG_PSCR			(16)
+#define PHY_REG_PSCR_TFD_MAX	(0x3u<<14)
+#define PHY_REG_PSCR_RFD_MAX	(0x3u<<12)
+
 #define PHY_REG_PSSR			(17)
 #define PHY_REG_PSSR_LINK(a)	((a>>10)&0x1u)
 #define PHY_REG_PSSR_SPEED(a)	((a>>14)&0x3u)
@@ -225,26 +229,27 @@ void EnablePhy(PHY_cfg *cfg)
 int InitPhy(PHY_cfg *cfg)
 {
 	u32 d;
-	u32 ctrl;
 
 	// Check PHY presence
 	d=MDIO_read(cfg, PHY_REG_IDH);
 	if(d!=M88E1111_IDH)
 		return -1;
 
-	// Reset PHY
-	ctrl=d=MDIO_read(cfg, PHY_REG_CTRL);
-	d|=PHY_REG_CTRL_RST;
-	MDIO_write(cfg, PHY_REG_CTRL, d);
-
 	// Enable RGMII clock delay
 	d=MDIO_read(cfg, PHY_REG_EPSC);
 	d|=PHY_REG_EPSC_RRTC|PHY_REG_EPSC_RTTC;
 	MDIO_write(cfg, PHY_REG_EPSC, d);
 
-	// Release PHY reset
-	d=ctrl&(~PHY_REG_CTRL_RST);
+	//d=MDIO_read(cfg, PHY_REG_PSCR);
+	//d|=PHY_REG_PSCR_TFD_MAX | PHY_REG_PSCR_RFD_MAX;
+	//MDIO_write(cfg, PHY_REG_PSCR, d);
+
+	// Soft Reset
+	d=MDIO_read(cfg, PHY_REG_CTRL);
+	d|=PHY_REG_CTRL_RST;
 	MDIO_write(cfg, PHY_REG_CTRL, d);
+	//while(MDIO_read(cfg, PHY_REG_CTRL)&PHY_REG_CTRL_RST)
+	//	delay(100);
 
 	return 0;
 }
