@@ -76,9 +76,9 @@ wire [31:0] gpio_t;
 //assign phy1_mdc = 1'bz;
 //assign phy1_reset_n = 1'b1;
 
-//assign phy2_txclk = phy2_rxclk;
-//assign phy2_txctl = 1'b0;
-//assign phy2_txd = 4'b0;
+assign phy2_txclk = phy2_rxclk;
+assign phy2_txctl = 1'b0;
+assign phy2_txd = 4'b0;
 //assign phy2_mdio = 1'bz;
 //assign phy2_mdc = 1'bz;
 //assign phy2_reset_n = 1'b1;
@@ -169,15 +169,6 @@ rgmii_bypass bypass_1(
 	.txclk(phy0_txclk),
 	.txdat(phy0_txd),
 	.txctl(phy0_txctl)
-);
-
-rgmii_bypass bypass_2(
-	.rxclk(phy2_rxclk),
-	.rxdat(phy2_rxd),
-	.rxctl(phy2_rxctl),
-	.txclk(phy2_txclk),
-	.txdat(phy2_txd),
-	.txctl(phy2_txctl)
 );
 
 endmodule
