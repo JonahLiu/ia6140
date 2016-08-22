@@ -52,10 +52,20 @@ module top(
 	input	flash_miso
 );
 wire clk;
+wire rst;
 
-reg [23:0] led_tmr;
-reg [3:0] scan_x;
-reg [2:0] scan_y;
+wire [1:0] led0;
+wire [1:0] led1;
+wire [1:0] led2;
+wire [1:0] led3;
+wire [1:0] led4;
+wire [1:0] led5;
+wire [1:0] led6;
+wire [1:0] led7;
+wire [1:0] led8;
+wire [1:0] led9;
+wire [1:0] led10;
+wire [1:0] led11;
 
 wire [31:0] gpio_i;
 wire [31:0] gpio_o;
@@ -90,36 +100,46 @@ wire p2_tx_er;
 
 wire mux_select;
 
-assign led_x = scan_x;
-assign led_y = scan_y;
-
 assign flash_cs_n = 1'bz;
 assign flash_sclk = 1'bz;
 assign flash_mosi = 1'bz;
 
-always @(posedge clk)
-begin
-	led_tmr <= led_tmr+1;
-end
+led_ctrl led_i(
+	.rst(rst),
+	.clk(clk),
+	.led0(led0),
+	.led1(led1),
+	.led2(led2),
+	.led3(led3),
+	.led4(led4),
+	.led5(led5),
+	.led6(led6),
+	.led7(led7),
+	.led8(led8),
+	.led9(led9),
+	.led10(led10),
+	.led11(led11),
+	.led12(2'b00),
+	.led13(2'b00),
+	.led14(2'b00),
+	.led15(2'b00),
+	.scan_x(led_x),
+	.scan_y(led_y)
+);
 
-always @(posedge clk)
-begin
-	case(led_tmr[17:14])
-		0: begin scan_x <= 4'b0001; scan_y <= 3'b110; end
-		1: begin scan_x <= 4'b0010; scan_y <= 3'b110; end
-		2: begin scan_x <= 4'b0100; scan_y <= 3'b110; end
-		3: begin scan_x <= 4'b1000; scan_y <= 3'b110; end
-		4: begin scan_x <= 4'b0001; scan_y <= 3'b101; end
-		5: begin scan_x <= 4'b0010; scan_y <= 3'b101; end
-		6: begin scan_x <= 4'b0100; scan_y <= 3'b101; end
-		7: begin scan_x <= 4'b1000; scan_y <= 3'b101; end
-		8: begin scan_x <= 4'b0001; scan_y <= 3'b011; end
-		9: begin scan_x <= 4'b0010; scan_y <= 3'b011; end
-		10: begin scan_x <= 4'b0100; scan_y <= 3'b011; end
-		11: begin scan_x <= 4'b1000; scan_y <= 3'b011; end
-		default: begin scan_x <= 4'b0000; scan_y <= 3'b111; end
-	endcase
-end
+
+assign led0 = 2'b00;
+assign led1 = 2'b00;
+assign led2 = 2'b00;
+assign led3 = 2'b00;
+assign led4 = 2'b00;
+assign led5 = mux_select?2'b00:2'b11;
+assign led6 = 2'b00;
+assign led7 = 2'b00;
+assign led8 = 2'b11;
+assign led9 = mux_select?2'b11:2'b00;
+assign led10 = 2'b00;
+assign led11 = 2'b00;
 
 nvm_emu nvm_i(
 	.cs_n(eep_cs_n),
@@ -132,6 +152,7 @@ mcu mcu_i(
 	.CLKIN(clk125m),
 	.CLKOUT(clk),
 	.RESET(1'b0),
+	.RESETOUT(rst),
 	.GPIO_I(gpio_i),
 	.GPIO_O(gpio_o),
 	.GPIO_T(gpio_t)
@@ -160,7 +181,7 @@ assign phy2_reset_n = gpio_t[23]?1'bz:gpio_o[23];
 
 assign gpio_i[31:30] = sw;
 
-assign gpio_i[24] = mux_select;
+assign gpio_i[24] = gpio_o[24];
 assign mux_select = gpio_o[24];
 
 rgmii_if up_if_i(
@@ -220,24 +241,68 @@ rgmii_if p2_if_i(
 	.tx_er(p2_tx_er)
 );
 
-reg_slice #(.STAGE(2), .WIDTH(10)) dl_0(
-	.clk_i(up_rx_clk),
-	.d({up_rx_er, up_rx_dv, up_rx_data}),
-	.q({p1_tx_er, p1_tx_en, p1_tx_data})
-);
-assign p1_tx_clk = up_rx_clk;
+wire [7:0] p1_mux_data;
+wire p1_mux_en;
+wire p1_mux_er;
 
-reg_slice #(.STAGE(2), .WIDTH(10)) dl_1(
-	.clk_i(p1_rx_clk),
-	.d({p1_rx_er, p1_rx_dv, p1_rx_data}),
-	.q({up_tx_er, up_tx_en, up_tx_data})
-);
-assign up_tx_clk = p1_rx_clk;
+wire [7:0] p2_mux_data;
+wire p2_mux_en;
+wire p2_mux_er;
 
-assign p2_tx_clk = p2_rx_clk;
-assign p2_tx_data = 8'b0;
-assign p2_tx_en = 1'b0;
-assign p2_tx_er = 1'b0;
+assign up_tx_clk = clk;
+assign up_tx_data = mux_select ? p2_mux_data : p1_mux_data;
+assign up_tx_en = mux_select ? p2_mux_en : p1_mux_en;
+assign up_tx_er = mux_select ? p2_mux_er : p1_mux_er;
+
+pkt_fifo p1_rx_fifo_i(
+	.rst(mux_select),
+	.rx_clk(p1_rx_clk),
+	.rx_data(p1_rx_data),
+	.rx_dv(p1_rx_dv),
+	.rx_er(p1_rx_er),
+	.tx_clk(up_tx_clk),
+	.tx_data(p1_mux_data),
+	.tx_en(p1_mux_en),
+	.tx_er(p1_mux_er)
+);
+
+pkt_fifo p2_rx_fifo_i(
+	.rst(!mux_select),
+	.rx_clk(p2_rx_clk),
+	.rx_data(p2_rx_data),
+	.rx_dv(p2_rx_dv),
+	.rx_er(p2_rx_er),
+	.tx_clk(up_tx_clk),
+	.tx_data(p2_mux_data),
+	.tx_en(p2_mux_en),
+	.tx_er(p2_mux_er)
+);
+
+assign p1_tx_clk = clk;
+pkt_fifo p1_tx_fifo_i(
+	.rst(mux_select),
+	.rx_clk(up_rx_clk),
+	.rx_data(up_rx_data),
+	.rx_dv(up_rx_dv),
+	.rx_er(up_rx_er),
+	.tx_clk(p1_tx_clk),
+	.tx_data(p1_tx_data),
+	.tx_en(p1_tx_en),
+	.tx_er(p1_tx_er)
+);
+
+assign p2_tx_clk = clk;
+pkt_fifo p2_tx_fifo_i(
+	.rst(!mux_select),
+	.rx_clk(up_rx_clk),
+	.rx_data(up_rx_data),
+	.rx_dv(up_rx_dv),
+	.rx_er(up_rx_er),
+	.tx_clk(p2_tx_clk),
+	.tx_data(p2_tx_data),
+	.tx_en(p2_tx_en),
+	.tx_er(p2_tx_er)
+);
 
 endmodule
 

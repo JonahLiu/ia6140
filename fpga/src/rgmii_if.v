@@ -20,10 +20,10 @@ wire rx_er_xor;
 wire tx_er_xor;
 
 assign rx_clk = rgmii_rxclk;
-//assign rx_er = rx_dv^rx_er_xor;
-//assign tx_er_xor = tx_en^tx_er;
-assign rx_er = rx_er_xor;
-assign tx_er_xor = tx_er;
+assign rx_er = rx_dv^rx_er_xor;
+assign tx_er_xor = tx_en^tx_er;
+//assign rx_er = rx_er_xor;
+//assign tx_er_xor = tx_er;
 
 IDDR2 #(.DDR_ALIGNMENT("NONE"),.SRTYPE("ASYNC")) rxdat_iddr_0(.D(rgmii_rxdat[0]),.C0(rx_clk),.C1(!rx_clk),.CE(1'b1),.R(1'b0),.S(1'b0),.Q0(rx_data[0]),.Q1(rx_data[4]));
 IDDR2 #(.DDR_ALIGNMENT("NONE"),.SRTYPE("ASYNC")) rxdat_iddr_1(.D(rgmii_rxdat[1]),.C0(rx_clk),.C1(!rx_clk),.CE(1'b1),.R(1'b0),.S(1'b0),.Q0(rx_data[1]),.Q1(rx_data[5]));

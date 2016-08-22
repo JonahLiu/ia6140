@@ -17,7 +17,7 @@ wire [9:0] fifo_din;
 wire fifo_wr_en;
 wire [9:0] fifo_dout;
 reg fifo_rd_en;
-wire [10:0] fifo_rd_count;
+wire fifo_prog_empty;
 wire rx_last;
 wire tx_last;
 
@@ -25,6 +25,8 @@ reg [7:0] rx_data_0;
 reg rx_dv_0;
 reg rx_er_0;
 
+/*
+//wire [10:0] fifo_rd_count;
 fifo_async #(.DSIZE(10),.ASIZE(10),.MODE("FWFT")) fifo_i(
 	.wr_rst(rst),
 	.wr_clk(rx_clk),
@@ -38,6 +40,23 @@ fifo_async #(.DSIZE(10),.ASIZE(10),.MODE("FWFT")) fifo_i(
 	.rd_en(fifo_rd_en),
 	.empty(),
 	.rd_count(fifo_rd_count)
+);
+assign fifo_prog_empty = fifo_rd_count<THRESHOLD;
+*/
+pkt_fifo_core fifo_i(
+  .rst(rst), // input rst
+  .wr_clk(rx_clk), // input wr_clk
+  .rd_clk(tx_clk), // input rd_clk
+  .din(fifo_din), // input [9 : 0] din
+  .wr_en(fifo_wr_en), // input wr_en
+  .rd_en(fifo_rd_en), // input rd_en
+  .prog_empty_thresh(THRESHOLD), // input [10 : 0] prog_empty_thresh
+  .prog_full_thresh(THRESHOLD), // input [10 : 0] prog_full_thresh
+  .dout(fifo_dout), // output [9 : 0] dout
+  .full(), // output full
+  .empty(), // output empty
+  .prog_full(), // output prog_full
+  .prog_empty(fifo_prog_empty) // output prog_empty
 );
 
 always @(posedge rx_clk, posedge rst)
@@ -71,7 +90,7 @@ begin
 	if(rst) begin
 		fifo_rd_en <= 1'b0;
 	end
-	else if(!fifo_rd_en && fifo_rd_count >= THRESHOLD) begin
+	else if(!fifo_rd_en && !fifo_prog_empty) begin
 		fifo_rd_en <= 1'b1;
 	end
 	else if(fifo_rd_en && tx_last) begin

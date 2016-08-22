@@ -17,6 +17,7 @@
 #define SPEED_OFFSET(a)			(a*PHY_BITS+3)
 #define DUPLEX_OFFSET(a)		(a*PHY_BITS+5)
 #define RESET_OFFSET(a)			(a*PHY_BITS+7)
+#define CH_SEL_OFFSET			(24)
 
 #define	SPEED_10M				(0u)
 #define SPEED_100M				(1u)
@@ -53,6 +54,13 @@
 
 #define PHY_REG_CTRL			(0)
 #define PHY_REG_CTRL_RST		(1u<<15)
+#define PHY_REG_CTRL_PD			(1u<<11)
+#define PHY_REG_CTRL_RENEG		(1u<<9)
+#define PHY_REG_CTRL_SPD_MASK 	((1u<<6)|(1u<<13))
+#define PHY_REG_CTRL_SPD_1000	(1u<<6)
+#define PHY_REG_CTRL_SPD_100	(1u<<13)
+#define PHY_REG_CTRL_SPD_10		(0u)
+
 
 #define PHY_REG_STAT			(1)
 
@@ -61,19 +69,46 @@
 
 #define PHY_REG_IDL				(3)
 
+#define PHY_REG_ANAR			(4)
+#define PHY_REG_ANAR_100F		(1u<<8)
+#define PHY_REG_ANAR_100H		(1u<<7)
+#define PHY_REG_ANAR_10F		(1u<<6)
+#define PHY_REG_ANAR_10H		(1u<<5)
+
+#define PHY_REG_GBCR			(9)
+#define PHY_REG_GBCR_TEST_MASK	(0x7u<<13)
+#define PHY_REG_GBCR_TEST_WAVE	(0x1u<<13)
+#define PHY_REG_GBCR_1000F		(1u<<9)
+#define PHY_REG_GBCR_1000H		(1u<<8)
+
 #define PHY_REG_PSCR			(16)
 #define PHY_REG_PSCR_TFD_MAX	(0x3u<<14)
 #define PHY_REG_PSCR_RFD_MAX	(0x3u<<12)
+#define PHY_REG_PSCR_EXT		(1u<<7)
 
 #define PHY_REG_PSSR			(17)
 #define PHY_REG_PSSR_LINK(a)	((a>>10)&0x1u)
 #define PHY_REG_PSSR_SPEED(a)	((a>>14)&0x3u)
 #define PHY_REG_PSSR_DUPLEX(a)	((a>>13)&0x1u)
+#define PHY_REG_PSSR_LENGTH(a)	((a>>7)&0x7u)
+
+#define PHY_REG_IER				(18)
+
+#define PHY_REG_ISR				(19)
+#define PHY_REG_ISR_SERR			(1u<<9)
+#define PHY_REG_ISR_FCAR			(1u<<8)
 
 #define PHY_REG_EPSC			(20)
 #define PHY_REG_EPSC_RRTC		(1u<<7)
 #define PHY_REG_EPSC_RTTC		(1u<<1)
 
+#define PHY_REG_RECR			(21)
+
+#define PHY_REG_LEDC			(24)
+#define PHY_REG_LEDC_DISABLE	(1u<<15)
+
+#define LINK_HOLDOFF			(1000)
+#define ERROR_THRESHOLD			(10)
 
 
 typedef struct {
@@ -84,10 +119,16 @@ typedef struct {
 	u8 duplex_offset;
 	u8 reset_offset;
 	u8 phy_addr;
+	u8 offset;
 } PHY_cfg;
 
 typedef struct {
-	u8 state;
+	u8 link;
+	u8 speed;
+	u8 duplex;
+	u8 length;
+	u32 rx_err;
+	u32 link_time;
 } PHY;
 
 void print(char *str);
@@ -98,7 +139,7 @@ static PHY_cfg phyCfg[3]={
 		{MDC_OFFSET(1),MDIO_OFFSET(1),LINK_OFFSET(1),SPEED_OFFSET(1),DUPLEX_OFFSET(1),RESET_OFFSET(1),PHY1_PADDR},
 		{MDC_OFFSET(2),MDIO_OFFSET(2),LINK_OFFSET(2),SPEED_OFFSET(2),DUPLEX_OFFSET(2),RESET_OFFSET(2),PHY2_PADDR},
 };
-static PHY phy[3]={{0},{0},{0}};
+static PHY phy[3];
 
 void delay(u32 d)
 {
@@ -126,6 +167,14 @@ void IO_Set(u8 bit)
 void IO_Clear(u8 bit)
 {
 	XGpio_DiscreteClear(&gpio, 1, (1u<<bit));
+}
+
+void IO_SetBit(u8 bit, u8 value)
+{
+	if(value)
+		XGpio_DiscreteSet(&gpio, 1, (1u<<bit));
+	else
+		XGpio_DiscreteClear(&gpio, 1, (1u<<bit));
 }
 
 u8 IO_Get(u8 bit)
@@ -242,22 +291,71 @@ int InitPhy(PHY_cfg *cfg)
 
 	//d=MDIO_read(cfg, PHY_REG_PSCR);
 	//d|=PHY_REG_PSCR_TFD_MAX | PHY_REG_PSCR_RFD_MAX;
+	//d|=PHY_REG_PSCR_EXT;
 	//MDIO_write(cfg, PHY_REG_PSCR, d);
+
+	d=0xFFFF;
+	MDIO_write(cfg, PHY_REG_IER, d);
+
+	d=PHY_REG_LEDC_DISABLE;
+	MDIO_write(cfg, PHY_REG_LEDC, d);
 
 	// Soft Reset
 	d=MDIO_read(cfg, PHY_REG_CTRL);
 	d|=PHY_REG_CTRL_RST;
 	MDIO_write(cfg, PHY_REG_CTRL, d);
-	//while(MDIO_read(cfg, PHY_REG_CTRL)&PHY_REG_CTRL_RST)
-	//	delay(100);
 
 	return 0;
 }
 
+void SelectChannel(int ch)
+{
+	IO_SetDirection(CH_SEL_OFFSET, IO_DIR_OUTPUT);
+	if(ch)
+		IO_Set(CH_SEL_OFFSET);
+	else
+		IO_Clear(CH_SEL_OFFSET);
+}
+
+void UpdateChannelStatus(void)
+{
+	int i;
+	for(i=0;i<3;i++)
+	{
+		u16 d;
+		d=MDIO_read(&phyCfg[i], PHY_REG_PSSR);
+		// WORKAROUND: Add a delay to avoid the short unstable period after link setup
+		if(PHY_REG_PSSR_LINK(d))
+		{
+			if(phy[i].link_time<LINK_HOLDOFF)
+				phy[i].link_time++;
+			else
+				phy[i].link=1;
+		}
+		else
+		{
+			phy[i].link=0;
+			phy[i].link_time=0;
+		}
+		phy[i].speed=PHY_REG_PSSR_SPEED(d);
+		phy[i].duplex=PHY_REG_PSSR_DUPLEX(d);
+		phy[i].length=PHY_REG_PSSR_LENGTH(d);
+
+		d=MDIO_read(&phyCfg[i], PHY_REG_RECR);
+		phy[i].rx_err = d;
+
+		if(phy[i].rx_err>ERROR_THRESHOLD)
+		{
+			phy[i].link=0;
+			phy[i].link_time=0;
+		}
+	}
+}
+
 int main()
 {
-	u32 d;
 	int i;
+	int ch;
 
     init_platform();
 
@@ -285,18 +383,27 @@ int main()
     	InitPhy(&phyCfg[i]);
     }
 
+    ch=0;
+    SelectChannel(0);
+
     while(1)
     {
-    	for(i=0;i<3;i++)
+    	UpdateChannelStatus();
+    	if(ch==0)
     	{
-    		u8 link;
-    		u8 speed;
-    		u8 duplex;
-    		d=MDIO_read(&phyCfg[i], PHY_REG_PSSR);
-    		link=PHY_REG_PSSR_LINK(d);
-    		speed=PHY_REG_PSSR_SPEED(d);
-    		duplex=PHY_REG_PSSR_DUPLEX(d);
-    		d=0;
+    		if(phy[1].link==0 && phy[2].link==1)
+    		{
+    			ch=1;
+    			SelectChannel(ch);
+    		}
+    	}
+    	else
+    	{
+    		if(phy[1].link==1)
+    		{
+    			ch=0;
+    			SelectChannel(ch);
+    		}
     	}
     }
     return 0;
