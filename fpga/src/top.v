@@ -51,21 +51,12 @@ module top(
 	output	flash_mosi,
 	input	flash_miso
 );
+parameter CLK_PERIOD_NS = 8;
+parameter PULSE_EXTEND_MS = 500;
+localparam PULSE_EXTEND_CYCLES = PULSE_EXTEND_MS*1000000/CLK_PERIOD_NS;
+
 wire clk;
 wire rst;
-
-wire [1:0] led0;
-wire [1:0] led1;
-wire [1:0] led2;
-wire [1:0] led3;
-wire [1:0] led4;
-wire [1:0] led5;
-wire [1:0] led6;
-wire [1:0] led7;
-wire [1:0] led8;
-wire [1:0] led9;
-wire [1:0] led10;
-wire [1:0] led11;
 
 wire [31:0] gpio_i;
 wire [31:0] gpio_o;
@@ -100,46 +91,19 @@ wire p2_tx_er;
 
 wire mux_select;
 
+wire phy0_link;
+wire [1:0] phy0_speed;
+wire phy0_duplex;
+wire phy1_link;
+wire [1:0] phy1_speed;
+wire phy1_duplex;
+wire phy2_link;
+wire [1:0] phy2_speed;
+wire phy2_duplex;
+
 assign flash_cs_n = 1'bz;
 assign flash_sclk = 1'bz;
 assign flash_mosi = 1'bz;
-
-led_ctrl led_i(
-	.rst(rst),
-	.clk(clk),
-	.led0(led0),
-	.led1(led1),
-	.led2(led2),
-	.led3(led3),
-	.led4(led4),
-	.led5(led5),
-	.led6(led6),
-	.led7(led7),
-	.led8(led8),
-	.led9(led9),
-	.led10(led10),
-	.led11(led11),
-	.led12(2'b00),
-	.led13(2'b00),
-	.led14(2'b00),
-	.led15(2'b00),
-	.scan_x(led_x),
-	.scan_y(led_y)
-);
-
-
-assign led0 = 2'b00;
-assign led1 = 2'b00;
-assign led2 = 2'b00;
-assign led3 = 2'b00;
-assign led4 = 2'b00;
-assign led5 = mux_select?2'b00:2'b11;
-assign led6 = 2'b00;
-assign led7 = 2'b00;
-assign led8 = 2'b11;
-assign led9 = mux_select?2'b11:2'b00;
-assign led10 = 2'b00;
-assign led11 = 2'b00;
 
 nvm_emu nvm_i(
 	.cs_n(eep_cs_n),
@@ -163,6 +127,9 @@ assign gpio_i[1] = phy0_mdio;
 assign gpio_i[7] = phy0_reset_n;
 assign phy0_mdc = gpio_t[0]?1'bz:gpio_o[0];
 assign phy0_mdio = gpio_t[1]?1'bz:gpio_o[1];
+assign phy0_link = gpio_o[2];
+assign phy0_speed = gpio_o[4:3];
+assign phy0_duplex = gpio_o[5];
 assign phy0_reset_n = gpio_t[7]?1'bz:gpio_o[7];
 
 assign gpio_i[8] = phy1_mdc;
@@ -170,6 +137,9 @@ assign gpio_i[9] = phy1_mdio;
 assign gpio_i[15] = phy1_reset_n;
 assign phy1_mdc = gpio_t[8]?1'bz:gpio_o[8];
 assign phy1_mdio = gpio_t[9]?1'bz:gpio_o[9];
+assign phy1_link = gpio_o[10];
+assign phy1_speed = gpio_o[12:11];
+assign phy1_duplex = gpio_o[13];
 assign phy1_reset_n = gpio_t[15]?1'bz:gpio_o[15];
 
 assign gpio_i[16] = phy2_mdc;
@@ -177,6 +147,9 @@ assign gpio_i[17] = phy2_mdio;
 assign gpio_i[23] = phy2_reset_n;
 assign phy2_mdc = gpio_t[16]?1'bz:gpio_o[16];
 assign phy2_mdio = gpio_t[17]?1'bz:gpio_o[17];
+assign phy2_link = gpio_o[18];
+assign phy2_speed = gpio_o[20:19];
+assign phy2_duplex = gpio_o[21];
 assign phy2_reset_n = gpio_t[23]?1'bz:gpio_o[23];
 
 assign gpio_i[31:30] = sw;
@@ -303,6 +276,79 @@ pkt_fifo p2_tx_fifo_i(
 	.tx_en(p2_tx_en),
 	.tx_er(p2_tx_er)
 );
+
+wire phy1_active;
+pulse_extender #(.MIN_PULSE_CYCLES(PULSE_EXTEND_CYCLES)) p1_pe_i(
+	.rst(rst),
+	.clk(clk),
+	.d(p1_tx_en|p1_rx_dv),
+	.q(phy1_active)
+);
+
+wire phy2_active;
+pulse_extender #(.MIN_PULSE_CYCLES(PULSE_EXTEND_CYCLES)) p2_pe_i(
+	.rst(rst),
+	.clk(clk),
+	.d(p2_tx_en|p2_rx_dv),
+	.q(phy2_active)
+);
+
+wire [1:0] led0;
+wire [1:0] led1;
+wire [1:0] led2;
+wire [1:0] led3;
+wire [1:0] led4;
+wire [1:0] led5;
+wire [1:0] led6;
+wire [1:0] led7;
+wire [1:0] led8;
+wire [1:0] led9;
+wire [1:0] led10;
+wire [1:0] led11;
+led_ctrl #(
+	.CLK_PERIOD_NS(CLK_PERIOD_NS),
+	.SLOW_PERIOD_MS(1000),
+	.FAST_PERIOD_MS(200),
+	.DUTY_CYCLE_DIV(16)
+)led_i(
+	.rst(rst),
+	.clk(clk),
+	.led0(led0),
+	.led1(led1),
+	.led2(led2),
+	.led3(led3),
+	.led4(led4),
+	.led5(led5),
+	.led6(led6),
+	.led7(led7),
+	.led8(led8),
+	.led9(led9),
+	.led10(led10),
+	.led11(led11),
+	.led12(2'b00),
+	.led13(2'b00),
+	.led14(2'b00),
+	.led15(2'b00),
+	.scan_x(led_x),
+	.scan_y(led_y)
+);
+
+
+// LEDs on External Connector
+assign led0 = phy1_link ? (mux_select ? 2'b01 : 2'b11) : 2'b00; // LED 0
+assign led1 = phy1_active ? 2'b10 : (phy1_link ? 2'b11 : 2'b00); // LED 1
+assign led2 = phy0_link ? 2'b11 : 2'b00; // LED 2
+assign led3 = phy2_link ? (mux_select ? 2'b11 : 2'b01) : 2'b00; // LED 3
+assign led4 = phy2_active ? 2'b10 : (phy2_link ? 2'b11 : 2'b00); // LED 4
+
+// LEDs on board
+assign led5 = mux_select ? 2'b00 : 2'b11; // D16
+assign led6 = phy1_link ? 2'b11 : 2'b00; // D15
+assign led7 = phy1_active ? 2'b10 : (phy1_link ? 2'b11 : 2'b00); // D14
+assign led8 = phy0_link? 2'b11 : 2'b00; // D13
+assign led9 = mux_select?2'b11:2'b00; // D12
+assign led10 = phy2_link ? 2'b11 : 2'b00; // D11
+assign led11 = phy2_active ? 2'b10 : (phy2_link ? 2'b11 : 2'b00); // D10
 
 endmodule
 
