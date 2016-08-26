@@ -51,44 +51,75 @@ module top(
 	output	flash_mosi,
 	input	flash_miso
 );
+////////////////////////////////////////////////////////////////////////////////
+// parameters
 parameter CLK_PERIOD_NS = 8;
 parameter PULSE_EXTEND_MS = 500;
 localparam PULSE_EXTEND_CYCLES = PULSE_EXTEND_MS*1000000/CLK_PERIOD_NS;
+parameter [47:0] MAC_START = 48'h70_B3_D5_FF_E0_00;
+parameter MAC_BITS = 12;
 
+////////////////////////////////////////////////////////////////////////////////
+// unused
+assign flash_cs_n = 1'bz;
+assign flash_sclk = 1'bz;
+assign flash_mosi = 1'bz;
+
+////////////////////////////////////////////////////////////////////////////////
+// DNA serial number
+wire cfgclk;
+STARTUP_SPARTAN6 glb_i(
+	.CLK(1'b0),
+	.GSR(1'b0),
+	.GTS(1'b0),
+	.KEYCLEARB(1'b1),
+	.CFGCLK(),
+	.CFGMCLK(cfgclk),
+	.EOS()
+);
+
+wire [56:0] dna_sn;
+dna dna_i(
+	.clk(cfgclk),
+	.id(dna_sn),
+	.valid()
+);
+
+////////////////////////////////////////////////////////////////////////////////
+// EEPROM emulator
+wire [47:0] mac_unique;
+wire [11:0] mac_lsb;
+assign mac_lsb = dna_sn[11:0]+dna_sn[23:12]+
+	dna_sn[35:24]+dna_sn[47:36]+dna_sn[56:48];
+assign mac_unique = MAC_START | mac_lsb;
+nvm_emu nvm_i(
+	.cs_n(eep_cs_n),
+	.sck(eep_sclk),
+	.si(eep_mosi),
+	.so(eep_miso),
+	.mac(mac_unique)
+);
+
+////////////////////////////////////////////////////////////////////////////////
+// Microblaze controller
 wire clk;
 wire rst;
 
 wire [31:0] gpio_i;
 wire [31:0] gpio_o;
 wire [31:0] gpio_t;
+mcu mcu_i(
+	.CLKIN(clk125m),
+	.CLKOUT(clk),
+	.RESET(1'b0),
+	.RESETOUT(rst),
+	.GPIO_I(gpio_i),
+	.GPIO_O(gpio_o),
+	.GPIO_T(gpio_t)
+);
 
-wire up_rx_clk;
-wire [7:0] up_rx_data;
-wire up_rx_dv;
-wire up_rx_er;
-wire up_tx_clk;
-wire [7:0] up_tx_data;
-wire up_tx_en;
-wire up_tx_er;
-
-wire p1_rx_clk;
-wire [7:0] p1_rx_data;
-wire p1_rx_dv;
-wire p1_rx_er;
-wire p1_tx_clk;
-wire [7:0] p1_tx_data;
-wire p1_tx_en;
-wire p1_tx_er;
-
-wire p2_rx_clk;
-wire [7:0] p2_rx_data;
-wire p2_rx_dv;
-wire p2_rx_er;
-wire p2_tx_clk;
-wire [7:0] p2_tx_data;
-wire p2_tx_en;
-wire p2_tx_er;
-
+////////////////////////////////////////////////////////////////////////////////
+// GPIO connections
 wire mux_select;
 
 wire phy0_link;
@@ -101,61 +132,87 @@ wire phy2_link;
 wire [1:0] phy2_speed;
 wire phy2_duplex;
 
-assign flash_cs_n = 1'bz;
-assign flash_sclk = 1'bz;
-assign flash_mosi = 1'bz;
-
-nvm_emu nvm_i(
-	.cs_n(eep_cs_n),
-	.sck(eep_sclk),
-	.si(eep_mosi),
-	.so(eep_miso)
-);
-
-mcu mcu_i(
-	.CLKIN(clk125m),
-	.CLKOUT(clk),
-	.RESET(1'b0),
-	.RESETOUT(rst),
-	.GPIO_I(gpio_i),
-	.GPIO_O(gpio_o),
-	.GPIO_T(gpio_t)
-);
-
-assign gpio_i[0] = phy0_mdc;
-assign gpio_i[1] = phy0_mdio;
-assign gpio_i[7] = phy0_reset_n;
+assign gpio_i[0] = gpio_o[0];
 assign phy0_mdc = gpio_t[0]?1'bz:gpio_o[0];
+
+assign gpio_i[1] = gpio_t[1]?phy0_mdio:gpio_o[1];
 assign phy0_mdio = gpio_t[1]?1'bz:gpio_o[1];
+
+assign gpio_i[2] = gpio_o[2];
 assign phy0_link = gpio_o[2];
+
+assign gpio_i[4:3] = gpio_o[4:3];
 assign phy0_speed = gpio_o[4:3];
+
+assign gpio_i[5] = gpio_o[5];
 assign phy0_duplex = gpio_o[5];
+
+assign gpio_i[6] = gpio_o[6];
+
+assign gpio_i[7] = gpio_o[7];
 assign phy0_reset_n = gpio_t[7]?1'bz:gpio_o[7];
 
-assign gpio_i[8] = phy1_mdc;
-assign gpio_i[9] = phy1_mdio;
-assign gpio_i[15] = phy1_reset_n;
+assign gpio_i[8] = gpio_o[8];
 assign phy1_mdc = gpio_t[8]?1'bz:gpio_o[8];
+
+assign gpio_i[9] = gpio_t[9]?phy1_mdio:gpio_o[9];
 assign phy1_mdio = gpio_t[9]?1'bz:gpio_o[9];
+
+assign gpio_i[10] = gpio_o[10];
 assign phy1_link = gpio_o[10];
+
+assign gpio_i[12:11] = gpio_o[12:11];
 assign phy1_speed = gpio_o[12:11];
+
+assign gpio_i[13] = gpio_o[13];
 assign phy1_duplex = gpio_o[13];
+
+assign gpio_i[14] = gpio_o[14];
+
+assign gpio_i[15] = gpio_o[15];
 assign phy1_reset_n = gpio_t[15]?1'bz:gpio_o[15];
 
-assign gpio_i[16] = phy2_mdc;
-assign gpio_i[17] = phy2_mdio;
-assign gpio_i[23] = phy2_reset_n;
+assign gpio_i[16] = gpio_o[16];
 assign phy2_mdc = gpio_t[16]?1'bz:gpio_o[16];
-assign phy2_mdio = gpio_t[17]?1'bz:gpio_o[17];
-assign phy2_link = gpio_o[18];
-assign phy2_speed = gpio_o[20:19];
-assign phy2_duplex = gpio_o[21];
-assign phy2_reset_n = gpio_t[23]?1'bz:gpio_o[23];
 
-assign gpio_i[31:30] = sw;
+assign gpio_i[17] = gpio_t[17]?phy2_mdio:gpio_o[17];
+assign phy2_mdio = gpio_t[17]?1'bz:gpio_o[17];
+
+assign gpio_i[18] = gpio_o[18];
+assign phy2_link = gpio_o[18];
+
+assign gpio_i[20:19] = gpio_o[20:19];
+assign phy2_speed = gpio_o[20:19];
+
+assign gpio_i[21] = gpio_o[21];
+assign phy2_duplex = gpio_o[21];
+
+assign gpio_i[22] = gpio_o[22];
+
+assign gpio_i[23] = gpio_o[23];
+assign phy2_reset_n = gpio_t[23]?1'bz:gpio_o[23];
 
 assign gpio_i[24] = gpio_o[24];
 assign mux_select = gpio_o[24];
+
+assign gpio_i[29:25] = gpio_o[29:25];
+
+assign gpio_i[31:30] = sw;
+
+////////////////////////////////////////////////////////////////////////////////
+// Upstream port
+wire up_rx_clk;
+wire [7:0] up_rx_data;
+wire up_rx_dv;
+wire up_rx_er;
+wire up_tx_clk;
+wire [7:0] up_tx_data;
+wire up_tx_en;
+wire up_tx_er;
+
+wire [7:0] up_rx_data_i;
+wire up_rx_dv_i;
+wire up_rx_er_i;
 
 rgmii_if up_if_i(
 	.rgmii_rxclk(phy0_rxclk),
@@ -166,15 +223,37 @@ rgmii_if up_if_i(
 	.rgmii_txctl(phy0_txctl),
 
 	.rx_clk(up_rx_clk),
-	.rx_data(up_rx_data),
-	.rx_dv(up_rx_dv),
-	.rx_er(up_rx_er),
+	.rx_data(up_rx_data_i),
+	.rx_dv(up_rx_dv_i),
+	.rx_er(up_rx_er_i),
 
 	.tx_clk(up_tx_clk),
 	.tx_data(up_tx_data),
 	.tx_en(up_tx_en),
 	.tx_er(up_tx_er)
 );
+
+// Register slice to improve timing
+reg_slice #(.STAGE(2), .WIDTH(10)) up_reg_slice_i(
+	.clk_i(up_rx_clk),
+	.d({up_rx_er_i,up_rx_dv_i,up_rx_data_i}),
+	.q({up_rx_er,up_rx_dv,up_rx_data})
+);
+
+////////////////////////////////////////////////////////////////////////////////
+// Port 1
+wire p1_rx_clk;
+wire [7:0] p1_rx_data;
+wire p1_rx_dv;
+wire p1_rx_er;
+wire p1_tx_clk;
+wire [7:0] p1_tx_data;
+wire p1_tx_en;
+wire p1_tx_er;
+
+wire [7:0] p1_rx_data_i;
+wire p1_rx_dv_i;
+wire p1_rx_er_i;
 
 rgmii_if p1_if_i(
 	.rgmii_rxclk(phy1_rxclk),
@@ -185,15 +264,36 @@ rgmii_if p1_if_i(
 	.rgmii_txctl(phy1_txctl),
 
 	.rx_clk(p1_rx_clk),
-	.rx_data(p1_rx_data),
-	.rx_dv(p1_rx_dv),
-	.rx_er(p1_rx_er),
+	.rx_data(p1_rx_data_i),
+	.rx_dv(p1_rx_dv_i),
+	.rx_er(p1_rx_er_i),
 
 	.tx_clk(p1_tx_clk),
 	.tx_data(p1_tx_data),
 	.tx_en(p1_tx_en),
 	.tx_er(p1_tx_er)
 );
+
+reg_slice #(.STAGE(2), .WIDTH(10)) p1_reg_slice_i(
+	.clk_i(p1_rx_clk),
+	.d({p1_rx_er_i,p1_rx_dv_i,p1_rx_data_i}),
+	.q({p1_rx_er,p1_rx_dv,p1_rx_data})
+);
+
+////////////////////////////////////////////////////////////////////////////////
+// Port 2
+wire p2_rx_clk;
+wire [7:0] p2_rx_data;
+wire p2_rx_dv;
+wire p2_rx_er;
+wire p2_tx_clk;
+wire [7:0] p2_tx_data;
+wire p2_tx_en;
+wire p2_tx_er;
+
+wire [7:0] p2_rx_data_i;
+wire p2_rx_dv_i;
+wire p2_rx_er_i;
 
 rgmii_if p2_if_i(
 	.rgmii_rxclk(phy2_rxclk),
@@ -204,9 +304,9 @@ rgmii_if p2_if_i(
 	.rgmii_txctl(phy2_txctl),
 
 	.rx_clk(p2_rx_clk),
-	.rx_data(p2_rx_data),
-	.rx_dv(p2_rx_dv),
-	.rx_er(p2_rx_er),
+	.rx_data(p2_rx_data_i),
+	.rx_dv(p2_rx_dv_i),
+	.rx_er(p2_rx_er_i),
 
 	.tx_clk(p2_tx_clk),
 	.tx_data(p2_tx_data),
@@ -214,6 +314,14 @@ rgmii_if p2_if_i(
 	.tx_er(p2_tx_er)
 );
 
+reg_slice #(.STAGE(2), .WIDTH(10)) p2_reg_slice_i(
+	.clk_i(p2_rx_clk),
+	.d({p2_rx_er_i,p2_rx_dv_i,p2_rx_data_i}),
+	.q({p2_rx_er,p2_rx_dv,p2_rx_data})
+);
+
+////////////////////////////////////////////////////////////////////////////////
+// Dual-redundancy port multiplexing
 wire [7:0] p1_mux_data;
 wire p1_mux_en;
 wire p1_mux_er;
@@ -277,6 +385,8 @@ pkt_fifo p2_tx_fifo_i(
 	.tx_er(p2_tx_er)
 );
 
+////////////////////////////////////////////////////////////////////////////////
+// Extend data valid pulse width to generate LED drive signals
 wire phy1_active;
 pulse_extender #(.MIN_PULSE_CYCLES(PULSE_EXTEND_CYCLES)) p1_pe_i(
 	.rst(rst),
@@ -293,6 +403,8 @@ pulse_extender #(.MIN_PULSE_CYCLES(PULSE_EXTEND_CYCLES)) p2_pe_i(
 	.q(phy2_active)
 );
 
+////////////////////////////////////////////////////////////////////////////////
+// LED controller
 wire [1:0] led0;
 wire [1:0] led1;
 wire [1:0] led2;
@@ -308,8 +420,7 @@ wire [1:0] led11;
 led_ctrl #(
 	.CLK_PERIOD_NS(CLK_PERIOD_NS),
 	.SLOW_PERIOD_MS(1000),
-	.FAST_PERIOD_MS(200),
-	.DUTY_CYCLE_DIV(16)
+	.FAST_PERIOD_MS(100)
 )led_i(
 	.rst(rst),
 	.clk(clk),
@@ -333,22 +444,21 @@ led_ctrl #(
 	.scan_y(led_y)
 );
 
-
 // LEDs on External Connector
-assign led0 = phy1_link ? (mux_select ? 2'b01 : 2'b11) : 2'b00; // LED 0
-assign led1 = phy1_active ? 2'b10 : (phy1_link ? 2'b11 : 2'b00); // LED 1
-assign led2 = phy0_link ? 2'b11 : 2'b00; // LED 2
-assign led3 = phy2_link ? (mux_select ? 2'b11 : 2'b01) : 2'b00; // LED 3
-assign led4 = phy2_active ? 2'b10 : (phy2_link ? 2'b11 : 2'b00); // LED 4
+assign led0 = phy1_link ? 2'b11 : 2'b00; // LED 0
+assign led1 = mux_select ? 2'b00 : (phy1_active ? 2'b10 : 2'b11); // LED 1
+assign led2 = phy0_link ? 2'b11 : 2'b01; // LED 2
+assign led3 = phy2_link ? 2'b11 : 2'b00; // LED 3
+assign led4 = mux_select ? (phy2_active ? 2'b10 : 2'b11) : 2'b00; // LED 4
 
 // LEDs on board
 assign led5 = mux_select ? 2'b00 : 2'b11; // D16
-assign led6 = phy1_link ? 2'b11 : 2'b00; // D15
-assign led7 = phy1_active ? 2'b10 : (phy1_link ? 2'b11 : 2'b00); // D14
-assign led8 = phy0_link? 2'b11 : 2'b00; // D13
+assign led6 = mux_select ? 2'b00 : (phy1_active ? 2'b10 : 2'b11); // D15
+assign led7 = phy1_link ? 2'b11 : 2'b00; // D14
+assign led8 = phy0_link? 2'b11 : 2'b01; // D13
 assign led9 = mux_select?2'b11:2'b00; // D12
-assign led10 = phy2_link ? 2'b11 : 2'b00; // D11
-assign led11 = phy2_active ? 2'b10 : (phy2_link ? 2'b11 : 2'b00); // D10
+assign led10 = mux_select ? (phy2_active ? 2'b10 : 2'b11) : 2'b00; // D11
+assign led11 = phy2_link ? 2'b11 : 2'b00; // D10
 
 endmodule
 

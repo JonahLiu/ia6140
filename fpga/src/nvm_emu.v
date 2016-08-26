@@ -2,12 +2,19 @@ module nvm_emu(
 	input cs_n,
 	input sck,
 	input si,
-	output so
+	output so,
+	input	[47:0] mac
 );
 
 localparam [7:0] OP_READ = 8'b00000011;
 localparam [7:0] OP_RDSR = 8'b00000101;
 localparam [7:0] DEFAULT_RDSR = 8'b00000000;
+/*
+* NOTE: The Checksum word (3Fh) is calculated such that after adding all words (00h-3Fh),
+* including the Checksum word itself, the sum should equal BABAh. The initial value in
+* the 16-bit summing register should be 0000h and the carry bit should be ignored after
+* each addition. 
+*/
 
 reg [4:0] in_bits;
 reg [15:0] in_data;
@@ -35,7 +42,8 @@ assign so = out_en ? out_bit : 1'bz;
 nvm_rom rom_i(
 	.clk(!sck),
 	.addr(rom_addr),
-	.data(rom_data)
+	.data(rom_data),
+	.mac(mac)
 );
 
 always @(posedge sck, posedge cs_n)

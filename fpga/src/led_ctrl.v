@@ -25,7 +25,6 @@ module led_ctrl(
 parameter CLK_PERIOD_NS = 10;
 parameter SLOW_PERIOD_MS = 1000;
 parameter FAST_PERIOD_MS = 100;
-parameter DUTY_CYCLE_DIV = 16;
 
 function integer clogb2 (input integer size);
 begin
@@ -37,8 +36,7 @@ endfunction
 
 localparam SLOW_TMR_MSB = clogb2(SLOW_PERIOD_MS*1000000/CLK_PERIOD_NS)-1;
 localparam FAST_TMR_MSB = clogb2(FAST_PERIOD_MS*1000000/CLK_PERIOD_NS)-1;
-localparam DIV_MSB = FAST_TMR_MSB-1;
-localparam DIV_LSB = FAST_TMR_MSB-clogb2(DUTY_CYCLE_DIV);
+localparam DIV_LSB = clogb2(1000000/CLK_PERIOD_NS)-1;
 
 reg [31:0] led_tmr;
 
@@ -49,9 +47,9 @@ begin
 	led_tmr <= led_tmr+1;
 end
 
-assign always_on = led_tmr[DIV_MSB:DIV_LSB]==0;
-assign blink_slow = led_tmr[SLOW_TMR_MSB]&always_on;
-assign blink_fast = led_tmr[FAST_TMR_MSB]&always_on;
+assign always_on = 1'b1;
+assign blink_slow = led_tmr[SLOW_TMR_MSB];
+assign blink_fast = led_tmr[FAST_TMR_MSB];
 
 always @(*)
 begin
@@ -156,10 +154,35 @@ end
 always @(posedge clk)
 begin
 	case(led_tmr[DIV_LSB-1:DIV_LSB-2]) /* synthesis full_case */
-		0: begin scan_x <= led_p[3:0]; scan_y <= 3'b1110; end
-		1: begin scan_x <= led_p[7:4]; scan_y <= 3'b1101; end
-		2: begin scan_x <= led_p[11:8]; scan_y <= 3'b1011; end
-		3: begin scan_x <= led_p[15:12]; scan_y <= 3'b0111; end
+		0: scan_y <= 4'b1110;
+		1: scan_y <= 4'b1101;
+		2: scan_y <= 4'b1011;
+		3: scan_y <= 4'b0111;
+	endcase
+end
+
+always @(posedge clk)
+begin
+	case(led_tmr[DIV_LSB-1:DIV_LSB-4]) /* synthesis full_case */
+		0: scan_x <= {3'b000,led_p[0]};
+		1: scan_x <= {2'b00,led_p[1],1'b0};
+		2: scan_x <= {1'b0,led_p[2],2'b00};
+		3: scan_x <= {led_p[3],3'b000};
+
+		4: scan_x <= {3'b000,led_p[4]};
+		5: scan_x <= {2'b00,led_p[5],1'b0};
+		6: scan_x <= {1'b0,led_p[6],2'b00};
+		7: scan_x <= {led_p[7],3'b000};
+
+		8: scan_x <= {3'b000,led_p[8]};
+		9: scan_x <= {2'b00,led_p[9],1'b0};
+		10: scan_x <= {1'b0,led_p[10],2'b00};
+		11: scan_x <= {led_p[11],3'b000};
+
+		12: scan_x <= {3'b000,led_p[12]};
+		13: scan_x <= {2'b00,led_p[13],1'b0};
+		14: scan_x <= {1'b0,led_p[14],2'b00};
+		15: scan_x <= {led_p[15],3'b000};
 	endcase
 end
 

@@ -8,7 +8,7 @@
 
 #include "platform.h"
 
-#define IO_DIR_MASK				(0xFFFFFFFF)
+#define IO_DIR_MASK				(0x0)
 
 #define PHY_BITS				(8)
 #define MDC_OFFSET(a)			(a*PHY_BITS+0)
@@ -187,7 +187,7 @@ void MDIO_shift_out(PHY_cfg *cfg, u32 data, u8 n)
 {
 	u32 mask;
 
-	IO_SetDirection(cfg->mdc_offset, IO_DIR_OUTPUT);
+	//IO_SetDirection(cfg->mdc_offset, IO_DIR_OUTPUT);
 	IO_SetDirection(cfg->mdio_offset, IO_DIR_OUTPUT);
 
 	while(n>0)
@@ -212,7 +212,7 @@ u32 MDIO_shift_in(PHY_cfg *cfg, u8 n)
 	u32 mask;
 	u32 data=0;
 
-	IO_SetDirection(cfg->mdc_offset, IO_DIR_OUTPUT);
+	//IO_SetDirection(cfg->mdc_offset, IO_DIR_OUTPUT);
 	IO_SetDirection(cfg->mdio_offset, IO_DIR_INPUT);
 	IO_Clear(cfg->mdio_offset);
 
@@ -265,13 +265,13 @@ s32 MDIO_read(PHY_cfg *cfg, u8 offset)
 
 void ResetPhy(PHY_cfg *cfg)
 {
-	IO_SetDirection(cfg->reset_offset, IO_DIR_OUTPUT);
+	//IO_SetDirection(cfg->reset_offset, IO_DIR_OUTPUT);
 	IO_Clear(cfg->reset_offset);
 }
 
 void EnablePhy(PHY_cfg *cfg)
 {
-	IO_SetDirection(cfg->reset_offset, IO_DIR_OUTPUT);
+	//IO_SetDirection(cfg->reset_offset, IO_DIR_OUTPUT);
 	IO_Set(cfg->reset_offset);
 }
 
@@ -310,7 +310,7 @@ int InitPhy(PHY_cfg *cfg)
 
 void SelectChannel(int ch)
 {
-	IO_SetDirection(CH_SEL_OFFSET, IO_DIR_OUTPUT);
+	//IO_SetDirection(CH_SEL_OFFSET, IO_DIR_OUTPUT);
 	if(ch)
 		IO_Set(CH_SEL_OFFSET);
 	else
@@ -349,6 +349,8 @@ void UpdateChannelStatus(void)
 			phy[i].link=0;
 			phy[i].link_time=0;
 		}
+
+		IO_SetBit(phyCfg[i].link_offset, phy[i].link);
 	}
 }
 
