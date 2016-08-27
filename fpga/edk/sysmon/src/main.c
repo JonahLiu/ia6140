@@ -54,8 +54,10 @@
 
 #define PHY_REG_CTRL			(0)
 #define PHY_REG_CTRL_RST		(1u<<15)
+#define PHY_REG_CTRL_ANEG_EN	(1u<<12)
 #define PHY_REG_CTRL_PD			(1u<<11)
 #define PHY_REG_CTRL_RENEG		(1u<<9)
+#define PHY_REG_CTRL_DUPLEX		(1u<<8)
 #define PHY_REG_CTRL_SPD_MASK 	((1u<<6)|(1u<<13))
 #define PHY_REG_CTRL_SPD_1000	(1u<<6)
 #define PHY_REG_CTRL_SPD_100	(1u<<13)
@@ -123,9 +125,7 @@ typedef struct {
 } PHY_cfg;
 
 typedef struct {
-	u8 link;
-	u8 speed;
-	u8 duplex;
+	u8 link:1,speed:2,duplex:3,changed:1;
 	u8 length;
 	u32 rx_err;
 	u32 link_time;
@@ -328,29 +328,109 @@ void UpdateChannelStatus(void)
 		if(PHY_REG_PSSR_LINK(d))
 		{
 			if(phy[i].link_time<LINK_HOLDOFF)
+			{
 				phy[i].link_time++;
+			}
 			else
-				phy[i].link=1;
+			{
+				if(phy[i].link!=1 || phy[i].speed!=PHY_REG_PSSR_SPEED(d) ||
+						phy[i].duplex!=PHY_REG_PSSR_DUPLEX(d))
+					phy[i].changed=1;
+
+				phy[i].link = 1;
+				phy[i].speed = PHY_REG_PSSR_SPEED(d);
+				phy[i].duplex = PHY_REG_PSSR_DUPLEX(d);
+				phy[i].length = PHY_REG_PSSR_LENGTH(d);
+
+				d=MDIO_read(&phyCfg[i], PHY_REG_RECR);
+				phy[i].rx_err = d;
+
+				if(phy[i].rx_err>ERROR_THRESHOLD)
+				{
+					phy[i].link=0;
+					phy[i].link_time=0;
+				}
+			}
 		}
 		else
 		{
+			if(phy[i].link)
+				phy[i].changed=1;
+
 			phy[i].link=0;
 			phy[i].link_time=0;
-		}
-		phy[i].speed=PHY_REG_PSSR_SPEED(d);
-		phy[i].duplex=PHY_REG_PSSR_DUPLEX(d);
-		phy[i].length=PHY_REG_PSSR_LENGTH(d);
-
-		d=MDIO_read(&phyCfg[i], PHY_REG_RECR);
-		phy[i].rx_err = d;
-
-		if(phy[i].rx_err>ERROR_THRESHOLD)
-		{
-			phy[i].link=0;
-			phy[i].link_time=0;
+			//phy[i].speed=0;
+			//phy[i].duplex=0;
+			//phy[i].length=0;
+			//phy[i].rx_err=0;
 		}
 
 		IO_SetBit(phyCfg[i].link_offset, phy[i].link);
+	}
+}
+
+void TestCase(void)
+{
+	u32 d;
+	d = MDIO_read(&phyCfg[0], PHY_REG_CTRL);
+	d &= (~(PHY_REG_CTRL_SPD_MASK|PHY_REG_CTRL_ANEG_EN|PHY_REG_CTRL_DUPLEX));
+
+	MDIO_write(&phyCfg[0], PHY_REG_CTRL, d|PHY_REG_CTRL_SPD_1000|PHY_REG_CTRL_DUPLEX|PHY_REG_CTRL_RST);
+
+	MDIO_write(&phyCfg[0], PHY_REG_CTRL, d|PHY_REG_CTRL_SPD_1000|PHY_REG_CTRL_RST);
+
+	MDIO_write(&phyCfg[0], PHY_REG_CTRL, d|PHY_REG_CTRL_SPD_100|PHY_REG_CTRL_DUPLEX|PHY_REG_CTRL_RST);
+
+	MDIO_write(&phyCfg[0], PHY_REG_CTRL, d|PHY_REG_CTRL_SPD_100|PHY_REG_CTRL_RST);
+
+	MDIO_write(&phyCfg[0], PHY_REG_CTRL, d|PHY_REG_CTRL_SPD_10|PHY_REG_CTRL_DUPLEX|PHY_REG_CTRL_RST);
+
+	MDIO_write(&phyCfg[0], PHY_REG_CTRL, d|PHY_REG_CTRL_SPD_10|PHY_REG_CTRL_RST);
+
+	MDIO_write(&phyCfg[0], PHY_REG_CTRL, d|PHY_REG_CTRL_ANEG_EN|PHY_REG_CTRL_RST);
+}
+
+void SetupLink(int master)
+{
+	if(!phy[master].link)
+		return;
+
+	if(phy[master].speed != phy[0].speed ||
+			phy[master].duplex != phy[0].duplex)
+	{
+		u32 d;
+		d = MDIO_read(&phyCfg[0], PHY_REG_ANAR);
+		d &= (~(PHY_REG_ANAR_100F|PHY_REG_ANAR_100H|PHY_REG_ANAR_10F|PHY_REG_ANAR_10H));
+		if(phy[master].speed==SPEED_100M)
+		{
+			if(phy[master].duplex)
+				d |= PHY_REG_ANAR_100F;
+			else
+				d |= PHY_REG_ANAR_100H;
+		}
+		else if(phy[master].speed==SPEED_10M)
+		{
+			if(phy[master].duplex)
+				d |= PHY_REG_ANAR_10F;
+			else
+				d |= PHY_REG_ANAR_10H;
+		}
+		MDIO_write(&phyCfg[0], PHY_REG_ANAR, d);
+
+		d = MDIO_read(&phyCfg[0], PHY_REG_GBCR);
+		d &= (~(PHY_REG_GBCR_1000F|PHY_REG_GBCR_1000H));
+		if(phy[master].speed==SPEED_1000M)
+		{
+			if(phy[master].duplex)
+				d |= PHY_REG_GBCR_1000F;
+			else
+				d |= PHY_REG_GBCR_1000H;
+		}
+		MDIO_write(&phyCfg[0], PHY_REG_GBCR, d);
+
+		d = MDIO_read(&phyCfg[0], PHY_REG_CTRL);
+		d |= PHY_REG_CTRL_RENEG;
+		MDIO_write(&phyCfg[0], PHY_REG_CTRL, d);
 	}
 }
 
@@ -388,24 +468,27 @@ int main()
     ch=0;
     SelectChannel(0);
 
+    //TestCase();
+
     while(1)
     {
+    	u8 switch_port = 0;
+
     	UpdateChannelStatus();
-    	if(ch==0)
+
+    	// Auto port switching with port 1 having higher priority
+    	if((ch==0 && phy[1].link==0 && phy[2].link==1)||(ch==1 && phy[1].link==1))
     	{
-    		if(phy[1].link==0 && phy[2].link==1)
-    		{
-    			ch=1;
-    			SelectChannel(ch);
-    		}
+    		switch_port=1;
+    		ch=ch?0:1;
+    		SelectChannel(ch);
     	}
-    	else
+
+    	// Match ports speed and duplex
+    	if(switch_port || phy[0].changed || phy[1].changed || phy[2].changed)
     	{
-    		if(phy[1].link==1)
-    		{
-    			ch=0;
-    			SelectChannel(ch);
-    		}
+    		SetupLink(1+ch);
+    		phy[0].changed = phy[1].changed = phy[2].changed = 0;
     	}
     }
     return 0;

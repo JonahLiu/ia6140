@@ -330,7 +330,7 @@ wire [7:0] p2_mux_data;
 wire p2_mux_en;
 wire p2_mux_er;
 
-assign up_tx_clk = clk;
+assign up_tx_clk = up_rx_clk;
 assign up_tx_data = mux_select ? p2_mux_data : p1_mux_data;
 assign up_tx_en = mux_select ? p2_mux_en : p1_mux_en;
 assign up_tx_er = mux_select ? p2_mux_er : p1_mux_er;
@@ -359,7 +359,7 @@ pkt_fifo p2_rx_fifo_i(
 	.tx_er(p2_mux_er)
 );
 
-assign p1_tx_clk = clk;
+assign p1_tx_clk = p1_rx_clk;
 pkt_fifo p1_tx_fifo_i(
 	.rst(mux_select),
 	.rx_clk(up_rx_clk),
@@ -372,7 +372,7 @@ pkt_fifo p1_tx_fifo_i(
 	.tx_er(p1_tx_er)
 );
 
-assign p2_tx_clk = clk;
+assign p2_tx_clk = p2_rx_clk;
 pkt_fifo p2_tx_fifo_i(
 	.rst(!mux_select),
 	.rx_clk(up_rx_clk),
