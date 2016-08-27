@@ -446,18 +446,18 @@ led_ctrl #(
 
 // LEDs on External Connector
 assign led0 = phy1_link ? 2'b11 : 2'b00; // LED 0
-assign led1 = mux_select ? 2'b00 : (phy1_active ? 2'b10 : 2'b11); // LED 1
+assign led1 = mux_select ? 2'b00 : (phy1_active ? 2'b10 : (phy1_link ? 2'b11: 2'b00)); // LED 1
 assign led2 = phy0_link ? 2'b11 : 2'b01; // LED 2
 assign led3 = phy2_link ? 2'b11 : 2'b00; // LED 3
-assign led4 = mux_select ? (phy2_active ? 2'b10 : 2'b11) : 2'b00; // LED 4
+assign led4 = mux_select ? (phy2_active ? 2'b10 : (phy2_link ? 2'b11 : 2'b00)) : 2'b00; // LED 4
 
 // LEDs on board
 assign led5 = mux_select ? 2'b00 : 2'b11; // D16
-assign led6 = mux_select ? 2'b00 : (phy1_active ? 2'b10 : 2'b11); // D15
+assign led6 = mux_select ? 2'b00 : (phy1_active ? 2'b10 : (phy1_link? 2'b11: 2'b00)); // D15
 assign led7 = phy1_link ? 2'b11 : 2'b00; // D14
 assign led8 = phy0_link? 2'b11 : 2'b01; // D13
 assign led9 = mux_select?2'b11:2'b00; // D12
-assign led10 = mux_select ? (phy2_active ? 2'b10 : 2'b11) : 2'b00; // D11
+assign led10 = mux_select ? (phy2_active ? 2'b10 : (phy2_link? 2'b11 : 2'b00)) : 2'b00; // D11
 assign led11 = phy2_link ? 2'b11 : 2'b00; // D10
 
 endmodule

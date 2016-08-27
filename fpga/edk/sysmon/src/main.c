@@ -8,7 +8,7 @@
 
 #include "platform.h"
 
-#define IO_DIR_MASK				(0x0)
+#define IO_DIR_MASK				(0xC0000000)
 
 #define PHY_BITS				(8)
 #define MDC_OFFSET(a)			(a*PHY_BITS+0)
@@ -17,7 +17,12 @@
 #define SPEED_OFFSET(a)			(a*PHY_BITS+3)
 #define DUPLEX_OFFSET(a)		(a*PHY_BITS+5)
 #define RESET_OFFSET(a)			(a*PHY_BITS+7)
+
+#define OPTION_0				(30)
+#define OPTION_1				(31)
 #define CH_SEL_OFFSET			(24)
+
+#define UP_ALWAYS_EN		(OPTION_0)
 
 #define	SPEED_10M				(0u)
 #define SPEED_100M				(1u)
@@ -390,15 +395,28 @@ void TestCase(void)
 	MDIO_write(&phyCfg[0], PHY_REG_CTRL, d|PHY_REG_CTRL_ANEG_EN|PHY_REG_CTRL_RST);
 }
 
-void SetupLink(int master)
+void SetupLink(int master, u8 up_always_on)
 {
-	if(!phy[master].link)
-		return;
+	u32 d;
+	if(phy[master].link)
+	{
+		if(!phy[0].link)
+		{
+			d = MDIO_read(&phyCfg[0], PHY_REG_CTRL);
+			d &= ~PHY_REG_CTRL_PD;
+			MDIO_write(&phyCfg[0], PHY_REG_CTRL, d);
+		}
+	}else if(!up_always_on)
+	{
+		d = MDIO_read(&phyCfg[0], PHY_REG_CTRL);
+		d |= PHY_REG_CTRL_PD;
+		MDIO_write(&phyCfg[0], PHY_REG_CTRL, d);
+		return ;
+	}
 
 	if(phy[master].speed != phy[0].speed ||
 			phy[master].duplex != phy[0].duplex)
 	{
-		u32 d;
 		d = MDIO_read(&phyCfg[0], PHY_REG_ANAR);
 		d &= (~(PHY_REG_ANAR_100F|PHY_REG_ANAR_100H|PHY_REG_ANAR_10F|PHY_REG_ANAR_10H));
 		if(phy[master].speed==SPEED_100M)
@@ -437,7 +455,8 @@ void SetupLink(int master)
 int main()
 {
 	int i;
-	int ch;
+	u8 ch;
+	u8 up_always_on;
 
     init_platform();
 
@@ -465,10 +484,16 @@ int main()
     	InitPhy(&phyCfg[i]);
     }
 
+    up_always_on = IO_Get(UP_ALWAYS_EN);
+    if(!up_always_on)
+    {
+    	u32 d = MDIO_read(&phyCfg[0], PHY_REG_CTRL);
+    	d |= PHY_REG_CTRL_PD;
+    	MDIO_write(&phyCfg[0], PHY_REG_CTRL, d);
+    }
+
     ch=0;
     SelectChannel(0);
-
-    //TestCase();
 
     while(1)
     {
@@ -484,10 +509,10 @@ int main()
     		SelectChannel(ch);
     	}
 
-    	// Match ports speed and duplex
+    	// Match ports speed and duplexing
     	if(switch_port || phy[0].changed || phy[1].changed || phy[2].changed)
     	{
-    		SetupLink(1+ch);
+    		SetupLink(1+ch, up_always_on);
     		phy[0].changed = phy[1].changed = phy[2].changed = 0;
     	}
     }
