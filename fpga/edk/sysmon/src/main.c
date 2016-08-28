@@ -519,11 +519,15 @@ void SetupLink(int master, u8 up_always_on)
 			d &= ~PHY_REG_CTRL_PD;
 			MDIO_write(&phyCfg[0], PHY_REG_CTRL, d);
 		}
-	}else if(!up_always_on)
+	}
+	else
 	{
-		d = MDIO_read(&phyCfg[0], PHY_REG_CTRL);
-		d |= PHY_REG_CTRL_PD;
-		MDIO_write(&phyCfg[0], PHY_REG_CTRL, d);
+		if(!up_always_on)
+		{
+			d = MDIO_read(&phyCfg[0], PHY_REG_CTRL);
+			d |= PHY_REG_CTRL_PD;
+			MDIO_write(&phyCfg[0], PHY_REG_CTRL, d);
+		}
 		return ;
 	}
 
@@ -615,8 +619,8 @@ int main()
 
     while(1)
     {
-    	KEY_write(key, CIPHER_SIZE); // This will reset watchdog timer
-    	KEY_write(key, 1); // This will invalid previous key write and enable watchdog timer
+    	KEY_write(key, CIPHER_SIZE+1); // This will reset watchdog timer and re-launch
+    	//KEY_write(key, 1); // This will invalid previous key write and enable watchdog timer
 
     	u8 switch_port = 0;
 
