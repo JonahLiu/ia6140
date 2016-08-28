@@ -8,7 +8,12 @@
 
 #include "platform.h"
 
+#define CIPHER_SIZE				(8)
+#define DECIPHER_KEY			{0x55, 0x6F, 0x0F, 0x77, 0xE8, 0x62, 0xE0, 0xB6}
+
 #define IO_DIR_MASK				(0xC0000000)
+
+#define FLASH_KEY_ADDR			(0x80000)
 
 #define PHY_BITS				(8)
 #define MDC_OFFSET(a)			(a*PHY_BITS+0)
@@ -18,9 +23,15 @@
 #define DUPLEX_OFFSET(a)		(a*PHY_BITS+5)
 #define RESET_OFFSET(a)			(a*PHY_BITS+7)
 
+#define CH_SEL_OFFSET			(24)
+#define SPI_SCLK				(25)
+#define SPI_MOSI				(26)
+#define SPI_MISO				(27)
+#define FLASH_CS				(28)
+#define KEY_CS					(29)
 #define OPTION_0				(30)
 #define OPTION_1				(31)
-#define CH_SEL_OFFSET			(24)
+
 
 #define UP_ALWAYS_EN		(OPTION_0)
 
@@ -146,6 +157,8 @@ static PHY_cfg phyCfg[3]={
 };
 static PHY phy[3];
 
+static u8 decipher_key[8] = DECIPHER_KEY;
+
 void delay(u32 d)
 {
 	while(d--);
@@ -268,6 +281,84 @@ s32 MDIO_read(PHY_cfg *cfg, u8 offset)
 		return tmp&0xffffu;
 }
 
+void SPI_shift_out(u32 data, u8 n)
+{
+	u32 mask;
+
+	while(n>0)
+	{
+		mask = 1u<<(n-1);
+
+		IO_Clear(SPI_SCLK);
+
+		if(data & mask)
+			IO_Set(SPI_MOSI);
+		else
+			IO_Clear(SPI_MOSI);
+
+		IO_Set(SPI_SCLK);
+
+		--n;
+	}
+
+	IO_Clear(SPI_SCLK);
+}
+
+u32 SPI_shift_in(u8 n)
+{
+	u32 mask;
+	u32 data=0;
+
+	while(n>0)
+	{
+		IO_Clear(SPI_SCLK);
+
+		mask = 1u<<(n-1);
+		if(IO_Get(SPI_MISO))
+			data|=mask;
+
+		IO_Set(SPI_SCLK);
+
+		--n;
+	}
+	IO_Clear(SPI_SCLK);
+	return data;
+}
+
+size_t FLASH_read(u32 addr, char *buf, size_t size)
+{
+	size_t n;
+	u32 data;
+	IO_Set(FLASH_CS);
+
+	data = (0x3u<<24)|(addr&0xffffff);
+	SPI_shift_out(data, 32);
+
+	n=0;
+	while(n<size)
+	{
+		buf[n++] = SPI_shift_in(8);
+	}
+
+	IO_Clear(FLASH_CS);
+	return n;
+}
+
+size_t KEY_write(char *buf, size_t size)
+{
+	size_t n;
+	u32 data;
+	IO_Set(KEY_CS);
+	n=0;
+	while(n<size)
+	{
+		data = buf[n++]<<24;
+		SPI_shift_out(data,8);
+	}
+	IO_Clear(KEY_CS);
+	return n;
+}
+
 void ResetPhy(PHY_cfg *cfg)
 {
 	//IO_SetDirection(cfg->reset_offset, IO_DIR_OUTPUT);
@@ -374,7 +465,7 @@ void UpdateChannelStatus(void)
 	}
 }
 
-void TestCase(void)
+void TestPHYSpeed(void)
 {
 	u32 d;
 	d = MDIO_read(&phyCfg[0], PHY_REG_CTRL);
@@ -393,6 +484,28 @@ void TestCase(void)
 	MDIO_write(&phyCfg[0], PHY_REG_CTRL, d|PHY_REG_CTRL_SPD_10|PHY_REG_CTRL_RST);
 
 	MDIO_write(&phyCfg[0], PHY_REG_CTRL, d|PHY_REG_CTRL_ANEG_EN|PHY_REG_CTRL_RST);
+}
+
+void TestFlashRead(void)
+{
+	char buf[16];
+	FLASH_read(0,buf, sizeof(buf));
+	FLASH_read(16, buf, sizeof(buf));
+}
+
+void Decipher(char *buf, size_t size)
+{
+	int i;
+	for(i=0;i<size;i++)
+	{
+		buf[i] = buf[i]^decipher_key[i];
+	}
+}
+
+void GetKey(char *buf, size_t size)
+{
+	FLASH_read(FLASH_KEY_ADDR, buf, size);
+	Decipher(buf, size);
 }
 
 void SetupLink(int master, u8 up_always_on)
@@ -452,6 +565,8 @@ void SetupLink(int master, u8 up_always_on)
 	}
 }
 
+
+static char key[8];
 int main()
 {
 	int i;
@@ -462,6 +577,8 @@ int main()
 
     XGpio_Initialize(&gpio,0);
     XGpio_SetDataDirection(&gpio, 1, IO_DIR_MASK);
+
+    GetKey(key, CIPHER_SIZE);
 
     for(i=0;i<3;i++)
     {
@@ -497,6 +614,9 @@ int main()
 
     while(1)
     {
+    	KEY_write(key, CIPHER_SIZE); // This will reset watchdog timer
+    	KEY_write(key, 1); // This will invalid previous key write and enable watchdog timer
+
     	u8 switch_port = 0;
 
     	UpdateChannelStatus();

@@ -58,31 +58,23 @@ parameter PULSE_EXTEND_MS = 500;
 localparam PULSE_EXTEND_CYCLES = PULSE_EXTEND_MS*1000000/CLK_PERIOD_NS;
 parameter [47:0] MAC_START = 48'h70_B3_D5_FF_E0_00;
 parameter MAC_BITS = 12;
+parameter ENABLE_WDG = "TRUE";
 
 ////////////////////////////////////////////////////////////////////////////////
 // unused
-assign flash_cs_n = 1'bz;
-assign flash_sclk = 1'bz;
-assign flash_mosi = 1'bz;
 
 ////////////////////////////////////////////////////////////////////////////////
-// DNA serial number
-wire cfgclk;
-STARTUP_SPARTAN6 glb_i(
-	.CLK(1'b0),
-	.GSR(1'b0),
-	.GTS(1'b0),
-	.KEYCLEARB(1'b1),
-	.CFGCLK(),
-	.CFGMCLK(cfgclk),
-	.EOS()
-);
+// Watchdog
 
+wire key_cs;
+wire wdg_reset;
 wire [56:0] dna_sn;
-dna dna_i(
-	.clk(cfgclk),
-	.id(dna_sn),
-	.valid()
+watch_dog wdg_i(
+	.en(key_cs),
+	.sclk(flash_sclk),
+	.sdat(flash_mosi),
+	.reset(wdg_reset),
+	.dna(dna_sn)
 );
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -104,14 +96,17 @@ nvm_emu nvm_i(
 // Microblaze controller
 wire clk;
 wire rst;
+wire mcu_reset;
 
 wire [31:0] gpio_i;
 wire [31:0] gpio_o;
 wire [31:0] gpio_t;
+
+assign mcu_reset = ENABLE_WDG=="TRUE" ? wdg_reset : 1'b0;
 mcu mcu_i(
 	.CLKIN(clk125m),
 	.CLKOUT(clk),
-	.RESET(1'b0),
+	.RESET(mcu_reset),
 	.RESETOUT(rst),
 	.GPIO_I(gpio_i),
 	.GPIO_O(gpio_o),
@@ -195,7 +190,19 @@ assign phy2_reset_n = gpio_t[23]?1'bz:gpio_o[23];
 assign gpio_i[24] = gpio_o[24];
 assign mux_select = gpio_o[24];
 
-assign gpio_i[29:25] = gpio_o[29:25];
+assign gpio_i[25] = gpio_o[25];
+assign flash_sclk = gpio_t[25]?1'bz:gpio_o[25];
+
+assign gpio_i[26] = gpio_o[26];
+assign flash_mosi = gpio_t[26]?1'bz:gpio_o[26];
+
+assign gpio_i[27] = flash_miso;
+
+assign gpio_i[28] = gpio_o[28];
+assign flash_cs_n = gpio_t[28]?1'bz:!gpio_o[28];
+
+assign gpio_i[29] = gpio_o[29];
+assign key_cs = gpio_o[29];
 
 assign gpio_i[31:30] = sw;
 
