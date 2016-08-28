@@ -66,13 +66,15 @@ parameter ENABLE_WDG = "TRUE";
 ////////////////////////////////////////////////////////////////////////////////
 // Watchdog
 
-wire key_cs;
+wire wdg_en;
+wire wdg_sclk;
+wire wdg_sdat;
 wire wdg_reset;
 wire [56:0] dna_sn;
 watch_dog wdg_i(
-	.en(key_cs),
-	.sclk(flash_sclk),
-	.sdat(flash_mosi),
+	.en(wdg_en),
+	.sclk(wdg_sclk),
+	.sdat(wdg_sdat),
 	.reset(wdg_reset),
 	.dna(dna_sn)
 );
@@ -128,7 +130,7 @@ wire [1:0] phy2_speed;
 wire phy2_duplex;
 
 assign gpio_i[0] = gpio_o[0];
-assign phy0_mdc = gpio_t[0]?1'bz:gpio_o[0];
+assign phy0_mdc = gpio_o[0];
 
 assign gpio_i[1] = gpio_t[1]?phy0_mdio:gpio_o[1];
 assign phy0_mdio = gpio_t[1]?1'bz:gpio_o[1];
@@ -145,10 +147,10 @@ assign phy0_duplex = gpio_o[5];
 assign gpio_i[6] = gpio_o[6];
 
 assign gpio_i[7] = gpio_o[7];
-assign phy0_reset_n = gpio_t[7]?1'bz:gpio_o[7];
+assign phy0_reset_n = gpio_o[7];
 
 assign gpio_i[8] = gpio_o[8];
-assign phy1_mdc = gpio_t[8]?1'bz:gpio_o[8];
+assign phy1_mdc = gpio_o[8];
 
 assign gpio_i[9] = gpio_t[9]?phy1_mdio:gpio_o[9];
 assign phy1_mdio = gpio_t[9]?1'bz:gpio_o[9];
@@ -165,10 +167,10 @@ assign phy1_duplex = gpio_o[13];
 assign gpio_i[14] = gpio_o[14];
 
 assign gpio_i[15] = gpio_o[15];
-assign phy1_reset_n = gpio_t[15]?1'bz:gpio_o[15];
+assign phy1_reset_n = gpio_o[15];
 
 assign gpio_i[16] = gpio_o[16];
-assign phy2_mdc = gpio_t[16]?1'bz:gpio_o[16];
+assign phy2_mdc = gpio_o[16];
 
 assign gpio_i[17] = gpio_t[17]?phy2_mdio:gpio_o[17];
 assign phy2_mdio = gpio_t[17]?1'bz:gpio_o[17];
@@ -185,24 +187,26 @@ assign phy2_duplex = gpio_o[21];
 assign gpio_i[22] = gpio_o[22];
 
 assign gpio_i[23] = gpio_o[23];
-assign phy2_reset_n = gpio_t[23]?1'bz:gpio_o[23];
+assign phy2_reset_n = gpio_o[23];
 
 assign gpio_i[24] = gpio_o[24];
 assign mux_select = gpio_o[24];
 
 assign gpio_i[25] = gpio_o[25];
-assign flash_sclk = gpio_t[25]?1'bz:gpio_o[25];
+assign flash_sclk = gpio_o[25];
+assign wdg_sclk = gpio_o[25];
 
 assign gpio_i[26] = gpio_o[26];
-assign flash_mosi = gpio_t[26]?1'bz:gpio_o[26];
+assign flash_mosi = gpio_o[26];
+assign wdg_sdat = gpio_o[26];
 
 assign gpio_i[27] = flash_miso;
 
 assign gpio_i[28] = gpio_o[28];
-assign flash_cs_n = gpio_t[28]?1'bz:!gpio_o[28];
+assign flash_cs_n = !gpio_o[28];
 
 assign gpio_i[29] = gpio_o[29];
-assign key_cs = gpio_o[29];
+assign wdg_en = gpio_o[29];
 
 assign gpio_i[31:30] = sw;
 

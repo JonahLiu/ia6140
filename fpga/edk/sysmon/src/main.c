@@ -11,7 +11,7 @@
 #define CIPHER_SIZE				(8)
 #define DECIPHER_KEY			{0x55, 0x6F, 0x0F, 0x77, 0xE8, 0x62, 0xE0, 0xB6}
 
-#define IO_DIR_MASK				(0xC0000000)
+#define IO_DIR_MASK				(0x00000000)
 
 #define FLASH_KEY_ADDR			(0x80000)
 
@@ -28,7 +28,7 @@
 #define SPI_MOSI				(26)
 #define SPI_MISO				(27)
 #define FLASH_CS				(28)
-#define KEY_CS					(29)
+#define WDG_EN					(29)
 #define OPTION_0				(30)
 #define OPTION_1				(31)
 
@@ -348,14 +348,14 @@ size_t KEY_write(char *buf, size_t size)
 {
 	size_t n;
 	u32 data;
-	IO_Set(KEY_CS);
+	IO_Set(WDG_EN);
 	n=0;
 	while(n<size)
 	{
-		data = buf[n++]<<24;
+		data = buf[n++];
 		SPI_shift_out(data,8);
 	}
-	IO_Clear(KEY_CS);
+	IO_Clear(WDG_EN);
 	return n;
 }
 
@@ -566,7 +566,7 @@ void SetupLink(int master, u8 up_always_on)
 }
 
 
-static char key[8];
+static char key[CIPHER_SIZE+1];
 int main()
 {
 	int i;
@@ -579,6 +579,7 @@ int main()
     XGpio_SetDataDirection(&gpio, 1, IO_DIR_MASK);
 
     GetKey(key, CIPHER_SIZE);
+    KEY_write(key, CIPHER_SIZE);
 
     for(i=0;i<3;i++)
     {

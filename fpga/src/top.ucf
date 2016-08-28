@@ -111,3 +111,6 @@ TIMESPEC "TS_phy2_rxclk" = PERIOD "phy2_rxclk" 8ns HIGH 50%;
 #TIMESPEC TS_FF_P0 = FROM "phy0_rxclk" TO "clk" TIG;
 #TIMESPEC TS_FF_P1 = FROM "phy1_rxclk" TO "clk" TIG;
 #TIMESPEC TS_FF_P2 = FROM "phy2_rxclk" TO "clk" TIG;
+
+NET "wdg_i/cfgclk" TNM_NET = "cfgclk";
+TIMESPEC	"TS_cfgclk" = PERIOD "cfgclk" 20 ns HIGH 50%;

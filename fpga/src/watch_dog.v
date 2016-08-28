@@ -5,11 +5,21 @@ module watch_dog(
 	output	[56:0] dna,
 	output	reset
 );
-parameter CYCLES_1S = 1000000000/20;
+parameter TIMEOUT_MS = 1000;
+parameter TIMEOUT_CYCLES = TIMEOUT_MS/20*1000000;
+
+function integer binary_width (input integer size);
+begin
+	for (binary_width=1; size>1; binary_width=binary_width+1)
+		size = size >> 1;
+end
+endfunction
+
+localparam TIMER_BITS = binary_width(TIMEOUT_CYCLES);
 
 wire [63:0] key_value;
 
-reg [31:0] timer;
+reg [TIMER_BITS-1:0] timer;
 reg global_reset;
 reg key_match;
 
@@ -58,7 +68,7 @@ begin
 	if(key_match) begin
 		timer <= 0;
 	end
-	else if(timer == CYCLES_1S) begin
+	else if(timer == TIMEOUT_CYCLES) begin
 		timer <= 0;
 	end
 	else begin
@@ -68,7 +78,7 @@ end
 
 always @(posedge cfgclk)
 begin
-	if(timer == CYCLES_1S) begin
+	if(timer == TIMEOUT_CYCLES) begin
 		global_reset <= 1'b1;
 	end
 	else begin
