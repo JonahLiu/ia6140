@@ -5,7 +5,7 @@ module watch_dog(
 	output	[56:0] dna,
 	output	reset
 );
-parameter TIMEOUT_MS = 1000;
+parameter TIMEOUT_MS = 3000;
 parameter TIMEOUT_CYCLES = TIMEOUT_MS/20*1000000;
 
 function integer binary_width (input integer size);
@@ -22,6 +22,8 @@ wire [63:0] key_value;
 reg [TIMER_BITS-1:0] timer;
 reg global_reset;
 reg key_match;
+
+reg [4:0] clk_div;
 
 assign reset = global_reset;
 
@@ -41,8 +43,13 @@ STARTUP_SPARTAN6 glb_i(
 	.EOS()
 );
 
+always @(posedge cfgclk)
+begin
+	clk_div <= clk_div+1;
+end
+
 dna dna_i(
-	.clk(cfgclk),
+	.clk(clk_div[4]),
 	.id(dna),
 	.valid()
 );
@@ -85,5 +92,16 @@ begin
 		global_reset <= 1'b0;
 	end
 end
+wire [35:0] CONTROL0;
+wire [31:0] TRIG0;
+icon icon_i(
+    .CONTROL0(CONTROL0) // INOUT BUS [35:0]
+);
+ila32 ila32_i(
+    .CONTROL(CONTROL0), // INOUT BUS [35:0]
+    .CLK(cfgclk), // IN
+    .TRIG0(TRIG0) // IN BUS [31:0]
+);
 
+assign TRIG0 = {global_reset,key_match,timer[TIMER_BITS-1:TIMER_BITS-8],dna[7:0], key_value[7:0]};
 endmodule

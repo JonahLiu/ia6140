@@ -464,7 +464,7 @@ void UpdateChannelStatus(void)
 		IO_SetBit(phyCfg[i].link_offset, phy[i].link);
 	}
 }
-
+/*
 void TestPHYSpeed(void)
 {
 	u32 d;
@@ -492,6 +492,7 @@ void TestFlashRead(void)
 	FLASH_read(0,buf, sizeof(buf));
 	FLASH_read(16, buf, sizeof(buf));
 }
+*/
 
 void Decipher(char *buf, size_t size)
 {
@@ -573,7 +574,7 @@ void SetupLink(int master, u8 up_always_on)
 static char key[CIPHER_SIZE+1];
 int main()
 {
-	int i;
+	unsigned int i;
 	u8 ch;
 	u8 up_always_on;
 
@@ -617,10 +618,11 @@ int main()
     ch=0;
     SelectChannel(0);
 
+    i=0;
     while(1)
     {
-    	KEY_write(key, CIPHER_SIZE+1); // This will reset watchdog timer and re-launch
-    	//KEY_write(key, 1); // This will invalid previous key write and enable watchdog timer
+    	//if((i++)%1000)
+    	//	KEY_write(key, CIPHER_SIZE+1); // This will reset watchdog timer and re-launch
 
     	u8 switch_port = 0;
 
