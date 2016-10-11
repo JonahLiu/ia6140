@@ -445,6 +445,7 @@ void UpdateChannelStatus(void)
 				{
 					phy[i].link=0;
 					phy[i].link_time=0;
+					phy[i].changed=1;
 				}
 			}
 		}
