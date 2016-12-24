@@ -244,10 +244,26 @@ rgmii_if up_if_i(
 	.tx_er(up_tx_er)
 );
 
+wire [7:0] up_rx_data_p;
+wire up_rx_dv_p;
+wire up_rx_er_p;
+post_switch dut(
+	.rst(rst),
+	.clk(up_rx_clk),
+	.speed(phy0_speed[1]),
+	.select(mux_select),
+	.up_data(up_rx_data_i),
+	.up_dv(up_rx_dv_i),
+	.up_er(up_rx_er_i),
+	.down_data(up_rx_data_p),
+	.down_dv(up_rx_dv_p),
+	.down_er(up_rx_er_p)
+);
+
 // Register slice to improve timing
 reg_slice #(.STAGE(2), .WIDTH(10)) up_reg_slice_i(
 	.clk_i(up_rx_clk),
-	.d({up_rx_er_i,up_rx_dv_i,up_rx_data_i}),
+	.d({up_rx_er_p,up_rx_dv_p,up_rx_data_p}),
 	.q({up_rx_er,up_rx_dv,up_rx_data})
 );
 

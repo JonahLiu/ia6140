@@ -125,7 +125,7 @@
 #define PHY_REG_LEDC			(24)
 #define PHY_REG_LEDC_DISABLE	(1u<<15)
 
-#define LINK_HOLDOFF			(1000)
+#define LINK_HOLDOFF			(3000)
 #define ERROR_THRESHOLD			(10)
 
 
@@ -447,6 +447,7 @@ void UpdateChannelStatus(void)
 					phy[i].link_time=0;
 					phy[i].changed=1;
 				}
+
 			}
 		}
 		else
@@ -462,7 +463,13 @@ void UpdateChannelStatus(void)
 			//phy[i].rx_err=0;
 		}
 
-		IO_SetBit(phyCfg[i].link_offset, phy[i].link);
+		if(phy[i].changed)
+		{
+			IO_SetBit(phyCfg[i].link_offset, phy[i].link);
+			IO_SetBit(phyCfg[i].speed_offset, phy[i].speed&0x1);
+			IO_SetBit(phyCfg[i].speed_offset+1, (phy[i].speed&0x2)>>1);
+			IO_SetBit(phyCfg[i].duplex_offset, phy[i].duplex);
+		}
 	}
 }
 /*

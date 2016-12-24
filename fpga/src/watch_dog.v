@@ -92,6 +92,7 @@ begin
 		global_reset <= 1'b0;
 	end
 end
+/*
 wire [35:0] CONTROL0;
 wire [31:0] TRIG0;
 icon icon_i(
@@ -104,4 +105,5 @@ ila32 ila32_i(
 );
 
 assign TRIG0 = {global_reset,key_match,timer[TIMER_BITS-1:TIMER_BITS-8],dna[7:0], key_value[7:0]};
+*/
 endmodule
