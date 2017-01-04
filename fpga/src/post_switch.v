@@ -44,12 +44,9 @@ reg [7:0] pkt_cnt;
 reg [7:0] byte_cnt;
 reg cap_idx;
 reg [7:0] cap_length;
-reg hit_high;
-reg hit_low;
-reg hit_high_2;
-reg hit_high_3;
-reg hit_low_2;
-reg hit_low_3;
+
+reg [2:0] hit_fast;
+reg [4:0] hit_slow;
 
 reg [15:0] ifg_cnt;
 reg read_idx;
@@ -247,26 +244,32 @@ begin
 		cap_idx <= 1'b0;
 		captured <= 1'b0;
 		cap_length <= 'bx;
-		hit_high <= 1'bx;
-		hit_low <= 1'bx;
+		hit_fast <= 'bx;
+		hit_slow <= 'bx;
 	end
 	else begin
+		/* capture frames with type==0x0806 and op==0x02 */
 		if(write_offset==20)
-			hit_high <= ram_wdata==8'h08;
+			hit_fast[0] <= ram_wdata==8'h08;
 		if(write_offset==21)
-			hit_low <= ram_wdata==8'h06;
+			hit_fast[1] <= ram_wdata==8'h06;
+		if(write_offset==29)
+			hit_fast[2] <= ram_wdata==8'h02;
+
 		if(write_offset==40)
-			hit_high_2 <= ram_wdata[3:0]==4'h8;
+			hit_slow[0] <= ram_wdata[3:0]==4'h8;
 		if(write_offset==41)
-			hit_high_3 <= ram_wdata[3:0]==4'h0;
+			hit_slow[1] <= ram_wdata[3:0]==4'h0;
 		if(write_offset==42)
-			hit_low_2 <= ram_wdata[3:0]==4'h6;
+			hit_slow[2] <= ram_wdata[3:0]==4'h6;
 		if(write_offset==43)
-			hit_low_3 <= ram_wdata[3:0]==4'h0;
+			hit_slow[3] <= ram_wdata[3:0]==4'h0;
+		if(write_offset==58)
+			hit_slow[4] <= ram_wdata[3:0]==4'h2;
 
 		if(!up_dv && ram_wen) begin
-			if((speed && hit_high && hit_low) 
-				|| (!speed && hit_high_2 && hit_high_3 && hit_low_2 && hit_low_3)) begin
+			if((speed && (&hit_fast)) 
+				|| (!speed && (&hit_slow))) begin
 				captured <= 1'b1;
 				cap_length <= write_offset+1;
 				cap_idx <= !cap_idx;
@@ -287,6 +290,7 @@ end
 
 ////////////////////////////////////////////////////////////////////////
 // Debug
+/*
 wire [35:0] control0;
 wire [31:0] trig0;
 
@@ -313,4 +317,5 @@ assign trig0 = {
 	down_dv,
 	down_er
 };
+*/
 endmodule

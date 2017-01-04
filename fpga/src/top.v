@@ -58,7 +58,7 @@ parameter PULSE_EXTEND_MS = 500;
 localparam PULSE_EXTEND_CYCLES = PULSE_EXTEND_MS*1000000/CLK_PERIOD_NS;
 parameter [47:0] MAC_START = 48'h70_B3_D5_FF_E0_00;
 parameter MAC_BITS = 12;
-parameter ENABLE_WDG = "TRUE";
+parameter ENABLE_WDG = "FALSE";
 
 ////////////////////////////////////////////////////////////////////////////////
 // unused

@@ -125,7 +125,7 @@
 #define PHY_REG_LEDC			(24)
 #define PHY_REG_LEDC_DISABLE	(1u<<15)
 
-#define LINK_HOLDOFF			(3000)
+#define LINK_HOLDOFF			(1000)
 #define ERROR_THRESHOLD			(10)
 
 
