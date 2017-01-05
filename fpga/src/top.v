@@ -136,18 +136,18 @@ assign gpio_i[1] = gpio_t[1]?phy0_mdio:gpio_o[1];
 assign phy0_mdio = gpio_t[1]?1'bz:gpio_o[1];
 
 assign gpio_i[2] = gpio_o[2];
-assign phy0_link = gpio_o[2];
+//assign phy0_link = gpio_o[2];
 
 assign gpio_i[4:3] = gpio_o[4:3];
-assign phy0_speed = gpio_o[4:3];
+//assign phy0_speed = gpio_o[4:3];
 
 assign gpio_i[5] = gpio_o[5];
-assign phy0_duplex = gpio_o[5];
+//assign phy0_duplex = gpio_o[5];
 
 assign gpio_i[6] = gpio_o[6];
 
 assign gpio_i[7] = gpio_o[7];
-assign phy0_reset_n = gpio_o[7];
+//assign phy0_reset_n = gpio_o[7];
 
 assign gpio_i[8] = gpio_o[8];
 assign phy1_mdc = gpio_o[8];
@@ -156,18 +156,18 @@ assign gpio_i[9] = gpio_t[9]?phy1_mdio:gpio_o[9];
 assign phy1_mdio = gpio_t[9]?1'bz:gpio_o[9];
 
 assign gpio_i[10] = gpio_o[10];
-assign phy1_link = gpio_o[10];
+//assign phy1_link = gpio_o[10];
 
 assign gpio_i[12:11] = gpio_o[12:11];
-assign phy1_speed = gpio_o[12:11];
+//assign phy1_speed = gpio_o[12:11];
 
 assign gpio_i[13] = gpio_o[13];
-assign phy1_duplex = gpio_o[13];
+//assign phy1_duplex = gpio_o[13];
 
 assign gpio_i[14] = gpio_o[14];
 
 assign gpio_i[15] = gpio_o[15];
-assign phy1_reset_n = gpio_o[15];
+//assign phy1_reset_n = gpio_o[15];
 
 assign gpio_i[16] = gpio_o[16];
 assign phy2_mdc = gpio_o[16];
@@ -176,18 +176,18 @@ assign gpio_i[17] = gpio_t[17]?phy2_mdio:gpio_o[17];
 assign phy2_mdio = gpio_t[17]?1'bz:gpio_o[17];
 
 assign gpio_i[18] = gpio_o[18];
-assign phy2_link = gpio_o[18];
+//assign phy2_link = gpio_o[18];
 
 assign gpio_i[20:19] = gpio_o[20:19];
-assign phy2_speed = gpio_o[20:19];
+//assign phy2_speed = gpio_o[20:19];
 
 assign gpio_i[21] = gpio_o[21];
-assign phy2_duplex = gpio_o[21];
+//assign phy2_duplex = gpio_o[21];
 
 assign gpio_i[22] = gpio_o[22];
 
 assign gpio_i[23] = gpio_o[23];
-assign phy2_reset_n = gpio_o[23];
+//assign phy2_reset_n = gpio_o[23];
 
 assign gpio_i[24] = gpio_o[24];
 assign mux_select = gpio_o[24];
@@ -225,6 +225,8 @@ wire [7:0] up_rx_data_i;
 wire up_rx_dv_i;
 wire up_rx_er_i;
 
+assign phy0_reset_n = 1'b1;
+
 rgmii_if up_if_i(
 	.rgmii_rxclk(phy0_rxclk),
 	.rgmii_rxdat(phy0_rxd),
@@ -232,6 +234,10 @@ rgmii_if up_if_i(
 	.rgmii_txclk(phy0_txclk),
 	.rgmii_txdat(phy0_txd),
 	.rgmii_txctl(phy0_txctl),
+
+	.link_up(phy0_link),
+	.speed(phy0_speed),
+	.duplex(phy0_duplex),
 
 	.rx_clk(up_rx_clk),
 	.rx_data(up_rx_data_i),
@@ -244,26 +250,10 @@ rgmii_if up_if_i(
 	.tx_er(up_tx_er)
 );
 
-wire [7:0] up_rx_data_p;
-wire up_rx_dv_p;
-wire up_rx_er_p;
-post_switch dut(
-	.rst(rst),
-	.clk(up_rx_clk),
-	.speed(phy0_speed[1]),
-	.select(mux_select),
-	.up_data(up_rx_data_i),
-	.up_dv(up_rx_dv_i),
-	.up_er(up_rx_er_i),
-	.down_data(up_rx_data_p),
-	.down_dv(up_rx_dv_p),
-	.down_er(up_rx_er_p)
-);
-
 // Register slice to improve timing
 reg_slice #(.STAGE(2), .WIDTH(10)) up_reg_slice_i(
 	.clk_i(up_rx_clk),
-	.d({up_rx_er_p,up_rx_dv_p,up_rx_data_p}),
+	.d({up_rx_er_i,up_rx_dv_i,up_rx_data_i}),
 	.q({up_rx_er,up_rx_dv,up_rx_data})
 );
 
@@ -282,6 +272,8 @@ wire [7:0] p1_rx_data_i;
 wire p1_rx_dv_i;
 wire p1_rx_er_i;
 
+assign phy1_reset_n = 1'b1;
+
 rgmii_if p1_if_i(
 	.rgmii_rxclk(phy1_rxclk),
 	.rgmii_rxdat(phy1_rxd),
@@ -289,6 +281,10 @@ rgmii_if p1_if_i(
 	.rgmii_txclk(phy1_txclk),
 	.rgmii_txdat(phy1_txd),
 	.rgmii_txctl(phy1_txctl),
+
+	.link_up(phy1_link),
+	.speed(phy1_speed),
+	.duplex(phy1_duplex),
 
 	.rx_clk(p1_rx_clk),
 	.rx_data(p1_rx_data_i),
@@ -322,6 +318,8 @@ wire [7:0] p2_rx_data_i;
 wire p2_rx_dv_i;
 wire p2_rx_er_i;
 
+assign phy2_reset_n = 1'b1;
+
 rgmii_if p2_if_i(
 	.rgmii_rxclk(phy2_rxclk),
 	.rgmii_rxdat(phy2_rxd),
@@ -329,6 +327,10 @@ rgmii_if p2_if_i(
 	.rgmii_txclk(phy2_txclk),
 	.rgmii_txdat(phy2_txd),
 	.rgmii_txctl(phy2_txctl),
+
+	.link_up(phy2_link),
+	.speed(phy2_speed),
+	.duplex(phy2_duplex),
 
 	.rx_clk(p2_rx_clk),
 	.rx_data(p2_rx_data_i),
@@ -348,47 +350,138 @@ reg_slice #(.STAGE(2), .WIDTH(10)) p2_reg_slice_i(
 );
 
 ////////////////////////////////////////////////////////////////////////////////
-// Dual-redundancy port multiplexing
-wire [7:0] p1_mux_data;
-wire p1_mux_en;
-wire p1_mux_er;
+// Simple dual port repeating and multiplexing
+wire p1_rx_aclk;
+wire p1_rx_aresetn;
+wire [7:0] p1_rx_tdata;
+wire [0:0] p1_rx_tuser;
+wire p1_rx_tlast;
+wire p1_rx_tvalid;
+wire p1_rx_tready;
+wire p1_rx_rst;
 
-wire [7:0] p2_mux_data;
-wire p2_mux_en;
-wire p2_mux_er;
+reset_sync p1_rx_rst_sync_i(
+	.clk(p1_rx_clk),
+	.rst_in(!(phy0_link&&phy1_link)),
+	.rst_out(p1_rx_rst)
+);
 
-assign up_tx_clk = up_rx_clk;
-assign up_tx_data = mux_select ? p2_mux_data : p1_mux_data;
-assign up_tx_en = mux_select ? p2_mux_en : p1_mux_en;
-assign up_tx_er = mux_select ? p2_mux_er : p1_mux_er;
-
-pkt_fifo p1_rx_fifo_i(
-	.rst(mux_select),
+pkt_to_axis p1_rx_pkt_to_axis_i(
+	.rst(p1_rx_rst),
 	.rx_clk(p1_rx_clk),
 	.rx_data(p1_rx_data),
 	.rx_dv(p1_rx_dv),
 	.rx_er(p1_rx_er),
-	.tx_clk(up_tx_clk),
-	.tx_data(p1_mux_data),
-	.tx_en(p1_mux_en),
-	.tx_er(p1_mux_er)
+	.axis_aclk(p1_rx_aclk),
+	.axis_aresetn(p1_rx_aresetn),
+	.axis_tdata(p1_rx_tdata),
+	.axis_tuser(p1_rx_tuser),
+	.axis_tlast(p1_rx_tlast),
+	.axis_tvalid(p1_rx_tvalid),
+	.axis_tready(p1_rx_tready)
 );
 
-pkt_fifo p2_rx_fifo_i(
-	.rst(!mux_select),
+wire p2_rx_aclk;
+wire p2_rx_aresetn;
+wire [7:0] p2_rx_tdata;
+wire [0:0] p2_rx_tuser;
+wire p2_rx_tlast;
+wire p2_rx_tvalid;
+wire p2_rx_tready;
+wire p2_rx_rst;
+
+reset_sync p2_rx_rst_sync_i(
+	.clk(p2_rx_clk),
+	.rst_in(!(phy0_link&&phy2_link)),
+	.rst_out(p2_rx_rst)
+);
+
+pkt_to_axis p2_rx_pkt_to_axis_i(
+	.rst(p2_rx_rst),
 	.rx_clk(p2_rx_clk),
 	.rx_data(p2_rx_data),
 	.rx_dv(p2_rx_dv),
 	.rx_er(p2_rx_er),
+	.axis_aclk(p2_rx_aclk),
+	.axis_aresetn(p2_rx_aresetn),
+	.axis_tdata(p2_rx_tdata),
+	.axis_tuser(p2_rx_tuser),
+	.axis_tlast(p2_rx_tlast),
+	.axis_tvalid(p2_rx_tvalid),
+	.axis_tready(p2_rx_tready)
+);
+
+wire up_tx_aclk;
+wire up_tx_aresetn;
+wire [7:0] up_tx_tdata;
+wire [0:0] up_tx_tuser;
+wire up_tx_tlast;
+wire up_tx_tvalid;
+wire up_tx_tready;
+
+wire up_tx_areset_int;
+reset_sync up_tx_rst_sync_i(
+	.clk(up_tx_aclk),
+	.rst_in(!phy0_link),
+	.rst_out(up_tx_areset_int)
+);
+
+assign up_tx_aclk = up_rx_clk;
+assign up_tx_aresetn = !up_tx_areset_int;
+axis_to_pkt up_tx_axis_to_pkt_i(
+	.axis_aclk(up_tx_aclk),
+	.axis_aresetn(up_tx_aresetn),
+	.axis_tdata(up_tx_tdata),
+	.axis_tuser(up_tx_tuser),
+	.axis_tlast(up_tx_tlast),
+	.axis_tvalid(up_tx_tvalid),
+	.axis_tready(up_tx_tready),
 	.tx_clk(up_tx_clk),
-	.tx_data(p2_mux_data),
-	.tx_en(p2_mux_en),
-	.tx_er(p2_mux_er)
+	.tx_data(up_tx_data),
+	.tx_en(up_tx_en),
+	.tx_er(up_tx_er)
+);
+
+axis_mux up_tx_mux_i(
+  .ACLK(up_tx_aclk), // input ACLK
+  .ARESETN(up_tx_aresetn), // input ARESETN
+  .S00_AXIS_ACLK(p1_rx_aclk), // input S00_AXIS_ACLK
+  .S00_AXIS_ARESETN(p1_rx_aresetn), // input S00_AXIS_ARESETN
+  .S00_AXIS_TID(1'b0),
+  .S00_AXIS_TVALID(p1_rx_tvalid), // input S00_AXIS_TVALID
+  .S00_AXIS_TREADY(p1_rx_tready), // output S00_AXIS_TREADY
+  .S00_AXIS_TDATA(p1_rx_tdata), // input [7 : 0] S00_AXIS_TDATA
+  .S00_AXIS_TLAST(p1_rx_tlast), // input S00_AXIS_TLAST
+  .S00_AXIS_TUSER(p1_rx_tuser), // input [0 : 0] S00_AXIS_TUSER
+  .S01_AXIS_ACLK(p2_rx_aclk), // input S01_AXIS_ACLK
+  .S01_AXIS_ARESETN(p2_rx_aresetn), // input S01_AXIS_ARESETN
+  .S01_AXIS_TID(1'b1),
+  .S01_AXIS_TVALID(p2_rx_tvalid), // input S01_AXIS_TVALID
+  .S01_AXIS_TREADY(p2_rx_tready), // output S01_AXIS_TREADY
+  .S01_AXIS_TDATA(p2_rx_tdata), // input [7 : 0] S01_AXIS_TDATA
+  .S01_AXIS_TLAST(p2_rx_tlast), // input S01_AXIS_TLAST
+  .S01_AXIS_TUSER(p2_rx_tuser), // input [0 : 0] S01_AXIS_TUSER
+  .M00_AXIS_ACLK(up_tx_aclk), // input M00_AXIS_ACLK
+  .M00_AXIS_ARESETN(up_tx_aresetn), // input M00_AXIS_ARESETN
+  .M00_AXIS_TID(up_tx_tid),
+  .M00_AXIS_TVALID(up_tx_tvalid), // output M00_AXIS_TVALID
+  .M00_AXIS_TREADY(up_tx_tready), // input M00_AXIS_TREADY
+  .M00_AXIS_TDATA(up_tx_tdata), // output [7 : 0] M00_AXIS_TDATA
+  .M00_AXIS_TLAST(up_tx_tlast), // output M00_AXIS_TLAST
+  .M00_AXIS_TUSER(up_tx_tuser), // output [0 : 0] M00_AXIS_TUSER
+  .S00_ARB_REQ_SUPPRESS(1'b0), // input S00_ARB_REQ_SUPPRESS
+  .S01_ARB_REQ_SUPPRESS(1'b0) // input S01_ARB_REQ_SUPPRESS
 );
 
 assign p1_tx_clk = p1_rx_clk;
+wire p1_tx_rst;
+reset_sync p1_tx_rst_sync_i(
+	.clk(p1_tx_clk),
+	.rst_in(!(phy0_link&&phy1_link)),
+	.rst_out(p1_tx_rst)
+);
 pkt_fifo p1_tx_fifo_i(
-	.rst(mux_select),
+	.rst(p1_tx_rst),
 	.rx_clk(up_rx_clk),
 	.rx_data(up_rx_data),
 	.rx_dv(up_rx_dv),
@@ -400,8 +493,14 @@ pkt_fifo p1_tx_fifo_i(
 );
 
 assign p2_tx_clk = p2_rx_clk;
+wire p2_tx_rst;
+reset_sync p2_tx_rst_sync_i(
+	.clk(p2_tx_clk),
+	.rst_in(!(phy0_link&&phy2_link)),
+	.rst_out(p2_tx_rst)
+);
 pkt_fifo p2_tx_fifo_i(
-	.rst(!mux_select),
+	.rst(p2_tx_rst),
 	.rx_clk(up_rx_clk),
 	.rx_data(up_rx_data),
 	.rx_dv(up_rx_dv),
@@ -473,19 +572,64 @@ led_ctrl #(
 
 // LEDs on External Connector
 assign led0 = phy1_link ? 2'b11 : 2'b00; // LED 0
-assign led1 = mux_select ? 2'b00 : (phy1_active ? 2'b10 : (phy1_link ? 2'b11: 2'b00)); // LED 1
+assign led1 = phy1_active ? 2'b10 : (phy1_link ? 2'b11: 2'b00); // LED 1
 assign led2 = phy0_link ? 2'b11 : 2'b01; // LED 2
 assign led3 = phy2_link ? 2'b11 : 2'b00; // LED 3
-assign led4 = mux_select ? (phy2_active ? 2'b10 : (phy2_link ? 2'b11 : 2'b00)) : 2'b00; // LED 4
+assign led4 = phy2_active ? 2'b10 : (phy2_link ? 2'b11 : 2'b00); // LED 4
 
 // LEDs on board
 assign led5 = mux_select ? 2'b00 : 2'b11; // D16
-assign led6 = mux_select ? 2'b00 : (phy1_active ? 2'b10 : (phy1_link? 2'b11: 2'b00)); // D15
+assign led6 = phy1_active ? 2'b10 : (phy1_link? 2'b11: 2'b00); // D15
 assign led7 = phy1_link ? 2'b11 : 2'b00; // D14
 assign led8 = phy0_link? 2'b11 : 2'b01; // D13
 assign led9 = mux_select?2'b11:2'b00; // D12
-assign led10 = mux_select ? (phy2_active ? 2'b10 : (phy2_link? 2'b11 : 2'b00)) : 2'b00; // D11
+assign led10 = phy2_active ? 2'b10 : (phy2_link? 2'b11 : 2'b00); // D11
 assign led11 = phy2_link ? 2'b11 : 2'b00; // D10
 
+////////////////////////////////////////////////////////////////////////////////
+// PHY activity detection
+reg [1:0] phy1_det_r;
+reg [1:0] phy2_det_r;
+always @(posedge clk125m)
+begin
+	phy1_det_r <= phy1_det;
+	phy2_det_r <= phy2_det;
+end
+
+////////////////////////////////////////////////////////////////////////
+// Debug
+wire [35:0] control0;
+wire [31:0] trig0;
+
+icon icon_i(
+	.CONTROL0(control0)
+);
+
+ila32 ila_i(
+	.CLK(clk125m),
+	.CONTROL(control0),
+	.TRIG0(trig0)
+);
+
+assign trig0 = {
+	phy2_det_r,
+	phy1_det_r,
+
+	p2_rx_tready,
+	p2_rx_tlast,
+	p2_rx_tvalid,
+
+	p1_rx_tready,
+	p1_rx_tlast,
+	p1_rx_tvalid,
+
+	up_tx_er,
+	up_tx_en,
+	up_tx_data,
+
+	up_rx_er,
+	up_rx_dv,
+	up_rx_data
+};
 endmodule
 
