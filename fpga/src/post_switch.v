@@ -11,8 +11,8 @@ module post_switch (
 	output	reg down_er
 );
 
-parameter IFG_CLOCKS=128;
-parameter ARP_REPEAT=16;
+parameter IFG_CLOCKS=196;
+parameter ARP_REPEAT=3;
 
 integer s1, s1_next;
 integer s2, s2_next;

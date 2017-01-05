@@ -190,7 +190,7 @@ assign gpio_i[23] = gpio_o[23];
 //assign phy2_reset_n = gpio_o[23];
 
 assign gpio_i[24] = gpio_o[24];
-assign mux_select = gpio_o[24];
+//assign mux_select = gpio_o[24];
 
 assign gpio_i[25] = gpio_o[25];
 assign flash_sclk = gpio_o[25];
@@ -250,10 +250,26 @@ rgmii_if up_if_i(
 	.tx_er(up_tx_er)
 );
 
+wire [7:0] up_rx_data_p;
+wire up_rx_dv_p;
+wire up_rx_er_p;
+post_switch dut(
+	.rst(rst),
+	.clk(up_rx_clk),
+	.speed(phy0_speed[1]),
+	.select(mux_select),
+	.up_data(up_rx_data_i),
+	.up_dv(up_rx_dv_i),
+	.up_er(up_rx_er_i),
+	.down_data(up_rx_data_p),
+	.down_dv(up_rx_dv_p),
+	.down_er(up_rx_er_p)
+);
+
 // Register slice to improve timing
 reg_slice #(.STAGE(2), .WIDTH(10)) up_reg_slice_i(
 	.clk_i(up_rx_clk),
-	.d({up_rx_er_i,up_rx_dv_i,up_rx_data_i}),
+	.d({up_rx_er_p,up_rx_dv_p,up_rx_data_p}),
 	.q({up_rx_er,up_rx_dv,up_rx_data})
 );
 
@@ -350,134 +366,85 @@ reg_slice #(.STAGE(2), .WIDTH(10)) p2_reg_slice_i(
 );
 
 ////////////////////////////////////////////////////////////////////////////////
-// Simple dual port repeating and multiplexing
-wire p1_rx_aclk;
-wire p1_rx_aresetn;
-wire [7:0] p1_rx_tdata;
-wire [0:0] p1_rx_tuser;
-wire p1_rx_tlast;
-wire p1_rx_tvalid;
-wire p1_rx_tready;
-wire p1_rx_rst;
+// Fast fault detect
 
-reset_sync p1_rx_rst_sync_i(
-	.clk(p1_rx_clk),
-	.rst_in(!(phy0_link&&phy1_link)),
-	.rst_out(p1_rx_rst)
+wire phy1_link_ok;
+fault_detect fd1_i(
+	.clk(clk125m),
+	.rst(1'b0),
+	.link(phy1_link),
+	.line_sample(phy1_det),
+	.link_ok(phy1_link_ok)
 );
 
-pkt_to_axis p1_rx_pkt_to_axis_i(
+wire phy2_link_ok;
+fault_detect fd2_i(
+	.clk(clk125m),
+	.rst(1'b0),
+	.link(phy2_link),
+	.line_sample(phy2_det),
+	.link_ok(phy2_link_ok)
+);
+
+assign mux_select = (!phy1_link_ok && phy2_link_ok) ? 1'b1 : 1'b0;
+
+////////////////////////////////////////////////////////////////////////////////
+// Dual-redundancy port multiplexing
+wire [7:0] p1_mux_data;
+wire p1_mux_en;
+wire p1_mux_er;
+
+wire [7:0] p2_mux_data;
+wire p2_mux_en;
+wire p2_mux_er;
+
+assign up_tx_clk = up_rx_clk;
+assign up_tx_data = mux_select ? p2_mux_data : p1_mux_data;
+assign up_tx_en = mux_select ? p2_mux_en : p1_mux_en;
+assign up_tx_er = mux_select ? p2_mux_er : p1_mux_er;
+
+wire p1_rx_rst;
+reset_sync p1_rx_rst_sync_i(
+	.clk(p1_rx_clk),
+	.rst_in(mux_select),
+	.rst_out(p1_rx_rst)
+);
+pkt_fifo p1_rx_fifo_i(
 	.rst(p1_rx_rst),
 	.rx_clk(p1_rx_clk),
 	.rx_data(p1_rx_data),
 	.rx_dv(p1_rx_dv),
 	.rx_er(p1_rx_er),
-	.axis_aclk(p1_rx_aclk),
-	.axis_aresetn(p1_rx_aresetn),
-	.axis_tdata(p1_rx_tdata),
-	.axis_tuser(p1_rx_tuser),
-	.axis_tlast(p1_rx_tlast),
-	.axis_tvalid(p1_rx_tvalid),
-	.axis_tready(p1_rx_tready)
+	.tx_clk(up_tx_clk),
+	.tx_data(p1_mux_data),
+	.tx_en(p1_mux_en),
+	.tx_er(p1_mux_er)
 );
 
-wire p2_rx_aclk;
-wire p2_rx_aresetn;
-wire [7:0] p2_rx_tdata;
-wire [0:0] p2_rx_tuser;
-wire p2_rx_tlast;
-wire p2_rx_tvalid;
-wire p2_rx_tready;
 wire p2_rx_rst;
-
 reset_sync p2_rx_rst_sync_i(
 	.clk(p2_rx_clk),
-	.rst_in(!(phy0_link&&phy2_link)),
+	.rst_in(!mux_select),
 	.rst_out(p2_rx_rst)
 );
-
-pkt_to_axis p2_rx_pkt_to_axis_i(
+pkt_fifo p2_rx_fifo_i(
 	.rst(p2_rx_rst),
 	.rx_clk(p2_rx_clk),
 	.rx_data(p2_rx_data),
 	.rx_dv(p2_rx_dv),
 	.rx_er(p2_rx_er),
-	.axis_aclk(p2_rx_aclk),
-	.axis_aresetn(p2_rx_aresetn),
-	.axis_tdata(p2_rx_tdata),
-	.axis_tuser(p2_rx_tuser),
-	.axis_tlast(p2_rx_tlast),
-	.axis_tvalid(p2_rx_tvalid),
-	.axis_tready(p2_rx_tready)
-);
-
-wire up_tx_aclk;
-wire up_tx_aresetn;
-wire [7:0] up_tx_tdata;
-wire [0:0] up_tx_tuser;
-wire up_tx_tlast;
-wire up_tx_tvalid;
-wire up_tx_tready;
-
-wire up_tx_areset_int;
-reset_sync up_tx_rst_sync_i(
-	.clk(up_tx_aclk),
-	.rst_in(!phy0_link),
-	.rst_out(up_tx_areset_int)
-);
-
-assign up_tx_aclk = up_rx_clk;
-assign up_tx_aresetn = !up_tx_areset_int;
-axis_to_pkt up_tx_axis_to_pkt_i(
-	.axis_aclk(up_tx_aclk),
-	.axis_aresetn(up_tx_aresetn),
-	.axis_tdata(up_tx_tdata),
-	.axis_tuser(up_tx_tuser),
-	.axis_tlast(up_tx_tlast),
-	.axis_tvalid(up_tx_tvalid),
-	.axis_tready(up_tx_tready),
 	.tx_clk(up_tx_clk),
-	.tx_data(up_tx_data),
-	.tx_en(up_tx_en),
-	.tx_er(up_tx_er)
-);
-
-axis_mux up_tx_mux_i(
-  .ACLK(up_tx_aclk), // input ACLK
-  .ARESETN(up_tx_aresetn), // input ARESETN
-  .S00_AXIS_ACLK(p1_rx_aclk), // input S00_AXIS_ACLK
-  .S00_AXIS_ARESETN(p1_rx_aresetn), // input S00_AXIS_ARESETN
-  .S00_AXIS_TID(1'b0),
-  .S00_AXIS_TVALID(p1_rx_tvalid), // input S00_AXIS_TVALID
-  .S00_AXIS_TREADY(p1_rx_tready), // output S00_AXIS_TREADY
-  .S00_AXIS_TDATA(p1_rx_tdata), // input [7 : 0] S00_AXIS_TDATA
-  .S00_AXIS_TLAST(p1_rx_tlast), // input S00_AXIS_TLAST
-  .S00_AXIS_TUSER(p1_rx_tuser), // input [0 : 0] S00_AXIS_TUSER
-  .S01_AXIS_ACLK(p2_rx_aclk), // input S01_AXIS_ACLK
-  .S01_AXIS_ARESETN(p2_rx_aresetn), // input S01_AXIS_ARESETN
-  .S01_AXIS_TID(1'b1),
-  .S01_AXIS_TVALID(p2_rx_tvalid), // input S01_AXIS_TVALID
-  .S01_AXIS_TREADY(p2_rx_tready), // output S01_AXIS_TREADY
-  .S01_AXIS_TDATA(p2_rx_tdata), // input [7 : 0] S01_AXIS_TDATA
-  .S01_AXIS_TLAST(p2_rx_tlast), // input S01_AXIS_TLAST
-  .S01_AXIS_TUSER(p2_rx_tuser), // input [0 : 0] S01_AXIS_TUSER
-  .M00_AXIS_ACLK(up_tx_aclk), // input M00_AXIS_ACLK
-  .M00_AXIS_ARESETN(up_tx_aresetn), // input M00_AXIS_ARESETN
-  .M00_AXIS_TID(up_tx_tid),
-  .M00_AXIS_TVALID(up_tx_tvalid), // output M00_AXIS_TVALID
-  .M00_AXIS_TREADY(up_tx_tready), // input M00_AXIS_TREADY
-  .M00_AXIS_TDATA(up_tx_tdata), // output [7 : 0] M00_AXIS_TDATA
-  .M00_AXIS_TLAST(up_tx_tlast), // output M00_AXIS_TLAST
-  .M00_AXIS_TUSER(up_tx_tuser), // output [0 : 0] M00_AXIS_TUSER
-  .S00_ARB_REQ_SUPPRESS(1'b0), // input S00_ARB_REQ_SUPPRESS
-  .S01_ARB_REQ_SUPPRESS(1'b0) // input S01_ARB_REQ_SUPPRESS
+	.tx_data(p2_mux_data),
+	.tx_en(p2_mux_en),
+	.tx_er(p2_mux_er)
 );
 
 assign p1_tx_clk = p1_rx_clk;
 wire p1_tx_rst;
 reset_sync p1_tx_rst_sync_i(
 	.clk(p1_tx_clk),
-	.rst_in(!(phy0_link&&phy1_link)),
+	//.rst_in(!(phy0_link&&phy1_link)),
+	.rst_in(mux_select),
 	.rst_out(p1_tx_rst)
 );
 pkt_fifo p1_tx_fifo_i(
@@ -496,7 +463,8 @@ assign p2_tx_clk = p2_rx_clk;
 wire p2_tx_rst;
 reset_sync p2_tx_rst_sync_i(
 	.clk(p2_tx_clk),
-	.rst_in(!(phy0_link&&phy2_link)),
+	//.rst_in(!(phy0_link&&phy2_link)),
+	.rst_in(!mux_select),
 	.rst_out(p2_tx_rst)
 );
 pkt_fifo p2_tx_fifo_i(
@@ -586,16 +554,6 @@ assign led9 = mux_select?2'b11:2'b00; // D12
 assign led10 = phy2_active ? 2'b10 : (phy2_link? 2'b11 : 2'b00); // D11
 assign led11 = phy2_link ? 2'b11 : 2'b00; // D10
 
-////////////////////////////////////////////////////////////////////////////////
-// PHY activity detection
-reg [1:0] phy1_det_r;
-reg [1:0] phy2_det_r;
-always @(posedge clk125m)
-begin
-	phy1_det_r <= phy1_det;
-	phy2_det_r <= phy2_det;
-end
-
 ////////////////////////////////////////////////////////////////////////
 // Debug
 wire [35:0] control0;
@@ -612,16 +570,17 @@ ila32 ila_i(
 );
 
 assign trig0 = {
-	phy2_det_r,
-	phy1_det_r,
+	mux_select,
 
-	p2_rx_tready,
-	p2_rx_tlast,
-	p2_rx_tvalid,
+	phy2_link_ok,
+	phy2_link,
+	p2_rx_dv,
+	p2_tx_en,
 
-	p1_rx_tready,
-	p1_rx_tlast,
-	p1_rx_tvalid,
+	phy1_link_ok,
+	phy1_link,
+	p1_rx_dv,
+	p1_tx_en,
 
 	up_tx_er,
 	up_tx_en,
