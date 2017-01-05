@@ -69,10 +69,10 @@ begin
 	if(s1_next==S1_IDLE) begin
 		mdc <= 1'b1;
 	end
-	else if(ccnt==(PRESCALE/2-1)) begin
+	else if(ccnt==(PRESCALE-PRESCALE/4)) begin
 		mdc <= 1'b0;
 	end
-	else if(ccnt==(PRESCALE-1)) begin
+	else if(ccnt==PRESCALE/4) begin
 		mdc <= 1'b1;
 	end
 end
@@ -201,7 +201,7 @@ begin
 	if(!busy && start) begin
 		{mdio_o,shift_reg} <= {1'b1,SOF[1:0],op[1:0],phy_addr[4:0],reg_addr[4:0],TA[1:0],wdata};
 	end
-	else if(s1_next!=S1_IDLE && clk_f) begin
+	else if(s1_next!=S1_IDLE && s1_next!=S1_PRE && clk_f) begin
 		{mdio_o,shift_reg} <= {shift_reg,mdio_i};
 	end
 end
