@@ -3,6 +3,7 @@ module watch_dog(
 	input	sclk,
 	input	sdat,
 	output	[56:0] dna,
+	output	dna_valid,
 	output	reset
 );
 parameter TIMEOUT_MS = 3000;
@@ -51,7 +52,7 @@ end
 dna dna_i(
 	.clk(clk_div[4]),
 	.id(dna),
-	.valid()
+	.valid(dna_valid)
 );
 
 shift_reg #(.BITS(64)) reg_i(

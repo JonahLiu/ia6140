@@ -79,12 +79,14 @@ wire wdg_sclk;
 wire wdg_sdat;
 wire wdg_reset;
 wire [56:0] dna_sn;
+wire dna_valid;
 watch_dog wdg_i(
 	.en(wdg_en),
 	.sclk(wdg_sclk),
 	.sdat(wdg_sdat),
 	.reset(wdg_reset),
-	.dna(dna_sn)
+	.dna(dna_sn),
+	.dna_valid(dna_valid)
 );
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -111,7 +113,7 @@ wire [31:0] gpio_i;
 wire [31:0] gpio_o;
 wire [31:0] gpio_t;
 
-assign mcu_reset = ENABLE_WDG=="TRUE" ? wdg_reset : 1'b0;
+assign mcu_reset = rst | (ENABLE_WDG=="TRUE" ? wdg_reset : 1'b0);
 mcu mcu_i(
 	.CLKIN(clk125m),
 	.CLKOUT(clk),
@@ -265,15 +267,15 @@ wire post_dbg;
 post_switch dut(
 	.rst(rst),
 	.clk(up_rx_clk),
-	.speed(phy0_speed[1]),
+	.mac_address(mac_unique),
+	.mac_valid(dna_valid),
 	.trigger(post_trigger),
 	.up_data(up_rx_data_i),
 	.up_dv(up_rx_dv_i),
 	.up_er(up_rx_er_i),
 	.down_data(up_rx_data_p),
 	.down_dv(up_rx_dv_p),
-	.down_er(up_rx_er_p),
-	.debug(post_dbg)
+	.down_er(up_rx_er_p)
 );
 
 // Register slice to improve timing
@@ -592,7 +594,7 @@ ila32 ila_i(
 
 assign trig0 = {
 	post_trigger,
-	post_dbg,
+	dna_valid,
 
 	link2_enable,
 	link1_enable,

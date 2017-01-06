@@ -14,7 +14,7 @@ module mdio_ctrl
 	input	[15:0]	wdata,
 	output  [15:0]	rdata,
 	input	[1:0]	op,
-	input	start,
+	input	valid,
 	output	ready,
 	output  error
 );
@@ -25,18 +25,18 @@ localparam SOF=2'b01,TA=2'b10;
 
 reg [7:0] ccnt;
 reg [7:0] bcnt;
-reg busy;
+reg done;
+reg start;
 reg clk_f;
 reg [31:0] shift_reg;
-reg op_r;
 
 integer s1, s1_next;
 localparam S1_IDLE=0, S1_PRE=1, S1_SOF=2, S1_OP=3, S1_PADR=4,
 	S1_RADR=5, S1_TA=6, S1_DATA=7, S1_DONE=8;
 
-assign ready = !busy;
+assign ready = done;
 assign rdata = shift_reg[15:0];
-assign error = !busy ? shift_reg[16]: 1'b0;
+assign error = shift_reg[16];
 
 always @(posedge clk, posedge rst)
 begin
@@ -77,18 +77,30 @@ begin
 	end
 end
 
+
 always @(posedge clk, posedge rst)
 begin
 	if(rst) begin
-		busy <= 1'b0;
-		op_r <= 1'bx;
+		start <= 1'b0;
 	end
-	else if(!busy && start) begin
-		busy <= 1'b1;
-		op_r <= op;
+	else if(s1 == S1_IDLE && valid && !ready) begin
+		start <= 1'b1;
+	end
+	else if(s1 != S1_IDLE) begin
+		start <= 1'b0;
+	end
+end
+
+always @(posedge clk, posedge rst)
+begin
+	if(rst) begin
+		done <= 1'b0;
 	end
 	else if(clk_f && s1==S1_DONE) begin
-		busy <= 1'b0;
+		done <= 1'b1;
+	end
+	else begin
+		done <= 1'b0;
 	end
 end
 
@@ -106,7 +118,7 @@ always @(*)
 begin
 	case(s1)
 		S1_IDLE: begin
-			if(busy)
+			if(start)
 				s1_next = S1_PRE;
 			else
 				s1_next = S1_IDLE;
@@ -184,7 +196,7 @@ begin
 			S1_RADR: begin
 			end
 			S1_TA: begin
-				if(op_r==OP_READ)
+				if(op ==OP_READ)
 					mdio_oe <= 1'b0;
 			end
 			S1_DATA: begin
@@ -198,7 +210,7 @@ end
 
 always @(posedge clk)
 begin
-	if(!busy && start) begin
+	if(s1==S1_IDLE && start) begin
 		{mdio_o,shift_reg} <= {1'b1,SOF[1:0],op[1:0],phy_addr[4:0],reg_addr[4:0],TA[1:0],wdata};
 	end
 	else if(s1_next!=S1_IDLE && s1_next!=S1_PRE && clk_f) begin

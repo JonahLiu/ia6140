@@ -1,15 +1,15 @@
 module post_switch (
 	input	rst,
 	input	clk,
-	input	speed,
+	input	[47:0] mac_address,
+	input	mac_valid,
 	input	trigger,
 	input	[7:0] up_data,
 	input	up_dv,
 	input	up_er,
 	output	reg [7:0] down_data,
 	output	reg down_dv,
-	output	reg down_er,
-	output	debug
+	output	reg down_er
 );
 
 parameter IFG_CLOCKS=196;
@@ -26,40 +26,46 @@ localparam S1_IDLE=0,
 	S1_IFG=5; 
 
 localparam S2_IDLE=0,
-	S2_SETUP=1,
-	S2_RECORD=2,
-	S2_BYPASS=3;
+	S2_PRE=1,
+	S2_DATA=2,
+	S2_LAT=3,
+	S2_FCS=4,
+	S2_DONE=5;
 
-wire [8:0] ram_raddr;
+wire [6:0] ram_raddr;
 reg [7:0] ram_rdata;
 
-wire [8:0] ram_waddr;
+reg [6:0] ram_waddr;
 reg [7:0] ram_wdata;
 reg ram_wen;
 
 reg triggered;
 (* ASYNC_REG = "TRUE" *)
 reg [2:0] sync;
-reg captured;
-reg [7:0] pkt_length;
 reg [7:0] pkt_cnt;
 reg [7:0] byte_cnt;
-reg cap_idx;
-reg [7:0] cap_length;
-
-reg [2:0] hit_fast;
-reg [4:0] hit_slow;
 
 reg [15:0] ifg_cnt;
-reg read_idx;
-reg [7:0] read_offset;
-reg write_idx;
-reg [7:0] write_offset;
+reg [6:0] read_offset;
+reg [6:0] write_offset;
 
-assign debug = captured;
+reg crc_init;
+reg crc_wr;
+reg crc_rd;
+wire [7:0] crc_out;
 
-assign ram_raddr = {read_idx, read_offset};
-assign ram_waddr = {write_idx, write_offset};
+CRC_gen crc_gen_i(
+	.Reset(rst),
+	.Clk(clk),
+	.Init(crc_init),
+	.Frame_data(ram_wdata),
+	.Data_en(crc_wr),
+	.CRC_rd(crc_rd),
+	.CRC_end(),
+	.CRC_out(crc_out)
+);
+
+assign ram_raddr = read_offset;
 
 always @(posedge clk, posedge rst)
 begin
@@ -91,7 +97,7 @@ always @(*)
 begin
 	case(s1)
 		S1_IDLE: begin
-			if(triggered && captured)
+			if(triggered)
 				s1_next = S1_REPEAT;
 			else
 				s1_next = S1_IDLE;
@@ -109,7 +115,7 @@ begin
 			s1_next = S1_DATA;
 		end
 		S1_DATA: begin
-			if(byte_cnt==pkt_length)
+			if(byte_cnt==72)
 				s1_next = S1_IFG;
 			else
 				s1_next = S1_DATA;
@@ -134,10 +140,8 @@ begin
 		down_er <= 1'b0;
 		pkt_cnt <= 'bx;
 		byte_cnt <= 'bx;
-		pkt_length <= 'bx;
 		ifg_cnt <= 'bx;
 		read_offset <= 'bx;
-		read_idx <= 'bx;
 	end
 	else case(s1_next)
 		S1_IDLE: begin
@@ -153,9 +157,7 @@ begin
 			byte_cnt <= 'b0;
 		end
 		S1_FETCH: begin
-			read_idx <= cap_idx;
 			read_offset <= 'b0;
-			pkt_length <= cap_length;
 			pkt_cnt <= pkt_cnt+1;
 		end
 		S1_LATENCY: begin
@@ -186,27 +188,34 @@ always @(*)
 begin
 	case(s2)
 		S2_IDLE: begin
-			if(up_dv)
-				s2_next = S2_SETUP;
+			if(mac_valid)
+				s2_next = S2_PRE;
 			else
 				s2_next = S2_IDLE;
 		end
-		S2_SETUP: begin
-			s2_next = S2_RECORD;
-		end
-		S2_RECORD: begin
-			if(!up_dv)
-				s2_next = S2_IDLE;
-			else if(&write_offset) // all 1s
-				s2_next = S2_BYPASS;
+		S2_PRE: begin
+			if(write_offset==8)
+				s2_next = S2_DATA;
 			else
-				s2_next = S2_RECORD;
+				s2_next = S2_PRE;
 		end
-		S2_BYPASS: begin
-			if(!up_dv)
-				s2_next = S2_IDLE;
+		S2_DATA: begin
+			if(write_offset==68)
+				s2_next = S2_LAT;
 			else
-				s2_next = S2_BYPASS;
+				s2_next = S2_DATA;
+		end
+		S2_LAT: begin
+			s2_next = S2_FCS;
+		end
+		S2_FCS: begin
+			if(write_offset==72)
+				s2_next = S2_DONE;
+			else
+				s2_next = S2_FCS;
+		end
+		S2_DONE: begin
+			s2_next = S2_DONE;
 		end
 		default: begin
 			s2_next = 'bx;
@@ -218,78 +227,84 @@ always @(posedge clk, posedge rst)
 begin
 	if(rst) begin
 		ram_wen <= 1'b0;
-		write_idx <= 'b0;
-		write_offset <= 'b0;
+		ram_wdata <= 'bx;
+		ram_waddr <= 'bx;
+		write_offset <= 'bx;
+		crc_wr <= 1'b0;
+		crc_rd <= 1'b0;
+		crc_init <= 1'b0;
 	end
 	else case(s2_next)
 		S2_IDLE: begin
-			ram_wen <= 1'b0;
-		end
-		S2_SETUP: begin
-			write_idx <= !cap_idx;
 			write_offset <= 'b0;
-			ram_wdata <= up_data;
+			crc_init <= 1'b1;
+		end
+		S2_PRE: begin
+			case(write_offset)
+				0,1,2,3,4,5,6: ram_wdata <= 8'h55;
+				7: ram_wdata <= 8'hD5;
+			endcase
+			crc_init <= 1'b0;
+			ram_waddr <= write_offset;
 			ram_wen <= 1'b1;
-		end
-		S2_RECORD: begin
 			write_offset <= write_offset+1;
-			ram_wdata <= up_data;
 		end
-		S2_BYPASS: begin
+		S2_DATA: begin
+			case(write_offset)
+				8,9,10,11,12,13: ram_wdata <= 8'hFF;
+				14: ram_wdata <= mac_address[47:40];
+				15: ram_wdata <= mac_address[39:32];
+				16: ram_wdata <= mac_address[31:24];
+				17: ram_wdata <= mac_address[23:16];
+				18: ram_wdata <= mac_address[15:8];
+				19: ram_wdata <= mac_address[7:0];
+				20: ram_wdata <= 8'h08;
+				21: ram_wdata <= 8'h06;
+				22: ram_wdata <= 8'h00;
+				23: ram_wdata <= 8'h01;
+				24: ram_wdata <= 8'h08;
+				25: ram_wdata <= 8'h00;
+				26: ram_wdata <= 8'h06;
+				27: ram_wdata <= 8'h04;
+				28: ram_wdata <= 8'h00;
+				29: ram_wdata <= 8'h03;
+				30: ram_wdata <= mac_address[47:40];
+				31: ram_wdata <= mac_address[39:32];
+				32: ram_wdata <= mac_address[31:24];
+				33: ram_wdata <= mac_address[23:16];
+				34: ram_wdata <= mac_address[15:8];
+				35: ram_wdata <= mac_address[7:0];
+				36,37,38,39: ram_wdata <= 8'h00;
+				40,41,42,43,44,45: ram_wdata <= 8'hFF;
+				46,47,48,49: ram_wdata <= 8'h00;
+				50,51,52,53,54,55,56,57,58,59,60,61,62,63,64,65,66,67: ram_wdata <= 8'h00;
+			endcase
+			crc_wr <= 1'b1;
+			ram_waddr <= write_offset;
+			ram_wen <= 1'b1;
+			write_offset <= write_offset+1;
+		end
+		S2_LAT: begin
+			ram_wen <= 1'b0;
+			crc_wr <= 1'b0;
+			crc_rd <= 1'b1;
+		end
+		S2_FCS: begin
+			case(write_offset)
+				68,69,70,71: ram_wdata <= crc_out;
+			endcase
+			ram_waddr <= write_offset;
+			ram_wen <= 1'b1;
+			write_offset <= write_offset+1;
+		end
+		S2_DONE: begin
+			crc_rd <= 1'b0;
 			ram_wen <= 1'b0;
 		end
 	endcase
 end
 
-always @(posedge clk, posedge rst)
-begin
-	if(rst) begin
-		cap_idx <= 1'b0;
-		captured <= 1'b0;
-		cap_length <= 'bx;
-		hit_fast <= 'bx;
-		hit_slow <= 'bx;
-	end
-	else begin
-		/* capture frames with type==0x0806 and op==0x02 */
-		/*
-		if(write_offset==20)
-			hit_fast[0] <= ram_wdata==8'h08;
-		if(write_offset==21)
-			hit_fast[1] <= ram_wdata==8'h06;
-		if(write_offset==29)
-			hit_fast[2] <= ram_wdata==8'h02;
-
-		if(write_offset==40)
-			hit_slow[0] <= ram_wdata[3:0]==4'h8;
-		if(write_offset==41)
-			hit_slow[1] <= ram_wdata[3:0]==4'h0;
-		if(write_offset==42)
-			hit_slow[2] <= ram_wdata[3:0]==4'h6;
-		if(write_offset==43)
-			hit_slow[3] <= ram_wdata[3:0]==4'h0;
-		if(write_offset==58)
-			hit_slow[4] <= ram_wdata[3:0]==4'h2;
-		*/
-	    if(write_offset==8)
-			hit_fast[0] <= ram_wdata==8'hff;
-	    if(write_offset==9)
-			hit_fast[1] <= ram_wdata==8'hff;
-	    if(write_offset==10)
-			hit_fast[2] <= ram_wdata==8'hff;
-
-		if(!up_dv && ram_wen) begin
-			if((speed && (&hit_fast)) 
-				|| (!speed && (&hit_slow))) begin
-				captured <= 1'b1;
-				cap_length <= write_offset+1;
-				cap_idx <= !cap_idx;
-			end
-		end
-	end
-end
-
-reg [7:0] mem[0:511];
+reg [7:0] mem[0:127];
 
 always @(posedge clk)
 begin
@@ -299,34 +314,4 @@ begin
 	ram_rdata <= mem[ram_raddr];
 end
 
-////////////////////////////////////////////////////////////////////////
-// Debug
-/*
-wire [35:0] control0;
-wire [31:0] trig0;
-
-icon icon_i(
-	.CONTROL0(control0)
-);
-
-ila32 ila_i(
-	.CLK(clk),
-	.CONTROL(control0),
-	.TRIG0(trig0)
-);
-
-assign trig0 = {
-	speed,
-	cap_idx,
-	captured,
-	triggered,
-	trigger,
-	up_data,
-	up_dv,
-	up_er,
-	down_data,
-	down_dv,
-	down_er
-};
-*/
 endmodule
