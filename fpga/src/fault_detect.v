@@ -3,38 +3,43 @@ module fault_detect(
 	input	rst,
 	input	link,
 	input	[1:0] line_sample,
-	output	reg link_ok
+	output	reg link_ok,
+	output	debug
 );
 
 parameter LINK_UP_HOLD_OFF = 65535;
-parameter FAULT_TIMEOUT = 127;
+parameter FAULT_TIMEOUT = 128;
 
-reg [1:0] sample_0, sample_1, sample_2;
+(* ASYNC_REG="TRUE" *)
+reg [2:0] sample0;
+(* ASYNC_REG="TRUE" *)
+reg [2:0] sample1;
 always @(posedge clk)
 begin
-	sample_0 = line_sample;
-	sample_1 = sample_0;
-	sample_2 = sample_1;
+	sample0 <= {sample0, line_sample[0]};
+	sample1 <= {sample1, line_sample[1]};
 end
 
 reg	[15:0] hold_timer;
-reg [7:0] ctmr0;
-reg [7:0] ctmr1;
+reg [8:0] ctmr0;
+reg [8:0] ctmr1;
 reg carrier_fault;
+
+assign debug = carrier_fault;
 
 integer s1, s1_next;
 localparam S1_IDLE=0, S1_HOLD=2, S1_UP=3;
 
 always @(posedge clk)
 begin
-	if(sample_2[1]!=sample_1[1])
+	if(sample1[2]!=sample1[1])
 		ctmr1 <= 'b0;
-	else if(ctmr1 != FAULT_TIMEOUT);
+	else if(ctmr1 != FAULT_TIMEOUT)
 		ctmr1 <= ctmr1+1;
 
-	if(sample_2[0]!=sample_1[0])
+	if(sample0[2]!=sample0[1])
 		ctmr0 <= 'b0;
-	else if(ctmr0 != FAULT_TIMEOUT);
+	else if(ctmr0 != FAULT_TIMEOUT)
 		ctmr0 <= ctmr0+1;
 
 	carrier_fault <= (ctmr0==FAULT_TIMEOUT) || (ctmr1==FAULT_TIMEOUT);

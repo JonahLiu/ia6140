@@ -7,7 +7,7 @@ module rgmii_if(
 	output	rgmii_txctl,
 
 	output	reg link_up,
-	output	reg speed,
+	output	reg [1:0] speed,
 	output	reg duplex,
 
 	output	rx_clk,

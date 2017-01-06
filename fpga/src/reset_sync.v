@@ -3,9 +3,10 @@ module reset_sync(
 	input	rst_in,
 	output	reg rst_out
 );
+parameter CYCLES=2;
 
 (* ASYNC_REG = "TRUE" *)
-reg [1:0] rst_sync;
+reg [CYCLES-1:0] rst_sync;
 always @(posedge clk, posedge rst_in)
 begin
 	if(rst_in)
@@ -15,7 +16,7 @@ begin
 end
 always @(posedge clk)
 begin
-	rst_out <= !rst_sync[1];
+	rst_out <= !rst_sync[CYCLES-1];
 end
 
 endmodule

@@ -2,17 +2,18 @@ module post_switch (
 	input	rst,
 	input	clk,
 	input	speed,
-	input	select,
+	input	trigger,
 	input	[7:0] up_data,
 	input	up_dv,
 	input	up_er,
 	output	reg [7:0] down_data,
 	output	reg down_dv,
-	output	reg down_er
+	output	reg down_er,
+	output	debug
 );
 
 parameter IFG_CLOCKS=196;
-parameter ARP_REPEAT=3;
+parameter ARP_REPEAT=16;
 
 integer s1, s1_next;
 integer s2, s2_next;
@@ -36,8 +37,9 @@ wire [8:0] ram_waddr;
 reg [7:0] ram_wdata;
 reg ram_wen;
 
-reg switched;
-reg previous;
+reg triggered;
+(* ASYNC_REG = "TRUE" *)
+reg [2:0] sync;
 reg captured;
 reg [7:0] pkt_length;
 reg [7:0] pkt_cnt;
@@ -54,27 +56,28 @@ reg [7:0] read_offset;
 reg write_idx;
 reg [7:0] write_offset;
 
+assign debug = captured;
+
 assign ram_raddr = {read_idx, read_offset};
 assign ram_waddr = {write_idx, write_offset};
 
 always @(posedge clk, posedge rst)
 begin
 	if(rst)
-		previous <= 1'b0;
+		sync <= 'b0;
 	else 
-		previous <= select;
+		sync <= {sync,trigger};
 end
 
 always @(posedge clk, posedge rst)
 begin
 	if(rst) 
-		switched <= 1'b0;
-	else if(previous != select)
-		switched <= 1'b1;
+		triggered <= 1'b0;
+	else if(sync[2] && !sync[1])
+		triggered <= 1'b1;
 	else if(s1_next!= S1_IDLE)
-		switched <= 1'b0;
+		triggered <= 1'b0;
 end
-
 
 always @(posedge clk, posedge rst)
 begin
@@ -88,7 +91,7 @@ always @(*)
 begin
 	case(s1)
 		S1_IDLE: begin
-			if(switched && captured)
+			if(triggered && captured)
 				s1_next = S1_REPEAT;
 			else
 				s1_next = S1_IDLE;
@@ -249,6 +252,7 @@ begin
 	end
 	else begin
 		/* capture frames with type==0x0806 and op==0x02 */
+		/*
 		if(write_offset==20)
 			hit_fast[0] <= ram_wdata==8'h08;
 		if(write_offset==21)
@@ -266,6 +270,13 @@ begin
 			hit_slow[3] <= ram_wdata[3:0]==4'h0;
 		if(write_offset==58)
 			hit_slow[4] <= ram_wdata[3:0]==4'h2;
+		*/
+	    if(write_offset==8)
+			hit_fast[0] <= ram_wdata==8'hff;
+	    if(write_offset==9)
+			hit_fast[1] <= ram_wdata==8'hff;
+	    if(write_offset==10)
+			hit_fast[2] <= ram_wdata==8'hff;
 
 		if(!up_dv && ram_wen) begin
 			if((speed && (&hit_fast)) 
@@ -308,8 +319,8 @@ assign trig0 = {
 	speed,
 	cap_idx,
 	captured,
-	switched,
-	select,
+	triggered,
+	trigger,
 	up_data,
 	up_dv,
 	up_er,

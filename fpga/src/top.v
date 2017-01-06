@@ -62,6 +62,14 @@ parameter ENABLE_WDG = "FALSE";
 
 ////////////////////////////////////////////////////////////////////////////////
 // unused
+////////////////////////////////////////////////////////////////////////////////
+// Global reset
+wire rst;
+reset_sync #(.CYCLES(4)) gbl_rst_i(
+	.clk(clk125m),
+	.rst_in(1'b0),
+	.rst_out(rst)
+);
 
 ////////////////////////////////////////////////////////////////////////////////
 // Watchdog
@@ -97,7 +105,6 @@ nvm_emu nvm_i(
 ////////////////////////////////////////////////////////////////////////////////
 // Microblaze controller
 wire clk;
-wire rst;
 wire mcu_reset;
 
 wire [31:0] gpio_i;
@@ -109,7 +116,7 @@ mcu mcu_i(
 	.CLKIN(clk125m),
 	.CLKOUT(clk),
 	.RESET(mcu_reset),
-	.RESETOUT(rst),
+	.RESETOUT(),
 	.GPIO_I(gpio_i),
 	.GPIO_O(gpio_o),
 	.GPIO_T(gpio_t)
@@ -117,7 +124,7 @@ mcu mcu_i(
 
 ////////////////////////////////////////////////////////////////////////////////
 // GPIO connections
-wire mux_select;
+//wire mux_select;
 
 wire phy0_link;
 wire [1:0] phy0_speed;
@@ -253,17 +260,20 @@ rgmii_if up_if_i(
 wire [7:0] up_rx_data_p;
 wire up_rx_dv_p;
 wire up_rx_er_p;
+wire post_trigger;
+wire post_dbg;
 post_switch dut(
 	.rst(rst),
 	.clk(up_rx_clk),
 	.speed(phy0_speed[1]),
-	.select(mux_select),
+	.trigger(post_trigger),
 	.up_data(up_rx_data_i),
 	.up_dv(up_rx_dv_i),
 	.up_er(up_rx_er_i),
 	.down_data(up_rx_data_p),
 	.down_dv(up_rx_dv_p),
-	.down_er(up_rx_er_p)
+	.down_er(up_rx_er_p),
+	.debug(post_dbg)
 );
 
 // Register slice to improve timing
@@ -371,22 +381,33 @@ reg_slice #(.STAGE(2), .WIDTH(10)) p2_reg_slice_i(
 wire phy1_link_ok;
 fault_detect fd1_i(
 	.clk(clk125m),
-	.rst(1'b0),
+	.rst(rst),
 	.link(phy1_link),
 	.line_sample(phy1_det),
-	.link_ok(phy1_link_ok)
+	.link_ok(phy1_link_ok),
+	.debug(phy1_dbg)
 );
 
 wire phy2_link_ok;
 fault_detect fd2_i(
 	.clk(clk125m),
-	.rst(1'b0),
+	.rst(rst),
 	.link(phy2_link),
 	.line_sample(phy2_det),
-	.link_ok(phy2_link_ok)
+	.link_ok(phy2_link_ok),
+	.debug(phy2_dbg)
 );
 
-assign mux_select = (!phy1_link_ok && phy2_link_ok) ? 1'b1 : 1'b0;
+fault_switch flt_sw_i(
+	.clk(clk125m),
+	.rst(rst),
+	.link1_ok(phy1_link_ok),
+	.link2_ok(phy2_link_ok),
+	.link1_enable(link1_enable),
+	.link2_enable(link2_enable),
+	.pre_switch(),
+	.post_switch(post_trigger)
+);
 
 ////////////////////////////////////////////////////////////////////////////////
 // Dual-redundancy port multiplexing
@@ -399,14 +420,14 @@ wire p2_mux_en;
 wire p2_mux_er;
 
 assign up_tx_clk = up_rx_clk;
-assign up_tx_data = mux_select ? p2_mux_data : p1_mux_data;
-assign up_tx_en = mux_select ? p2_mux_en : p1_mux_en;
-assign up_tx_er = mux_select ? p2_mux_er : p1_mux_er;
+assign up_tx_data = link1_enable ? p1_mux_data : p2_mux_data;
+assign up_tx_en = link1_enable ? p1_mux_en : p2_mux_en;
+assign up_tx_er = link1_enable ? p1_mux_er : p2_mux_er;
 
 wire p1_rx_rst;
 reset_sync p1_rx_rst_sync_i(
 	.clk(p1_rx_clk),
-	.rst_in(mux_select),
+	.rst_in(!link1_enable),
 	.rst_out(p1_rx_rst)
 );
 pkt_fifo p1_rx_fifo_i(
@@ -424,7 +445,7 @@ pkt_fifo p1_rx_fifo_i(
 wire p2_rx_rst;
 reset_sync p2_rx_rst_sync_i(
 	.clk(p2_rx_clk),
-	.rst_in(!mux_select),
+	.rst_in(!link2_enable),
 	.rst_out(p2_rx_rst)
 );
 pkt_fifo p2_rx_fifo_i(
@@ -444,7 +465,7 @@ wire p1_tx_rst;
 reset_sync p1_tx_rst_sync_i(
 	.clk(p1_tx_clk),
 	//.rst_in(!(phy0_link&&phy1_link)),
-	.rst_in(mux_select),
+	.rst_in(!link1_enable),
 	.rst_out(p1_tx_rst)
 );
 pkt_fifo p1_tx_fifo_i(
@@ -464,7 +485,7 @@ wire p2_tx_rst;
 reset_sync p2_tx_rst_sync_i(
 	.clk(p2_tx_clk),
 	//.rst_in(!(phy0_link&&phy2_link)),
-	.rst_in(!mux_select),
+	.rst_in(!link2_enable),
 	.rst_out(p2_tx_rst)
 );
 pkt_fifo p2_tx_fifo_i(
@@ -546,11 +567,11 @@ assign led3 = phy2_link ? 2'b11 : 2'b00; // LED 3
 assign led4 = phy2_active ? 2'b10 : (phy2_link ? 2'b11 : 2'b00); // LED 4
 
 // LEDs on board
-assign led5 = mux_select ? 2'b00 : 2'b11; // D16
+assign led5 = link1_enable ? 2'b11 : 2'b00; // D16
 assign led6 = phy1_active ? 2'b10 : (phy1_link? 2'b11: 2'b00); // D15
 assign led7 = phy1_link ? 2'b11 : 2'b00; // D14
 assign led8 = phy0_link? 2'b11 : 2'b01; // D13
-assign led9 = mux_select?2'b11:2'b00; // D12
+assign led9 = link2_enable ? 2'b00 : 2'b11; // D12
 assign led10 = phy2_active ? 2'b10 : (phy2_link? 2'b11 : 2'b00); // D11
 assign led11 = phy2_link ? 2'b11 : 2'b00; // D10
 
@@ -570,7 +591,11 @@ ila32 ila_i(
 );
 
 assign trig0 = {
-	mux_select,
+	post_trigger,
+	post_dbg,
+
+	link2_enable,
+	link1_enable,
 
 	phy2_link_ok,
 	phy2_link,
@@ -589,6 +614,7 @@ assign trig0 = {
 	up_rx_er,
 	up_rx_dv,
 	up_rx_data
+	//{phy0_speed,post_dbg,post_trigger,phy2_det,phy1_det}
 };
 endmodule
 
