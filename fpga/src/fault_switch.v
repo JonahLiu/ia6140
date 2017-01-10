@@ -8,7 +8,7 @@ module fault_switch(
 	output	reg pre_switch,
 	output	reg post_switch
 );
-parameter SWITCH_HOLDOFF=1_000_000;
+parameter SWITCH_HOLDOFF=4_000_000;
 
 reg [23:0] timer;
 reg [3:0] pre_cnt;

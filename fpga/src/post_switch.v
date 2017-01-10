@@ -12,7 +12,7 @@ module post_switch (
 	output	reg down_er
 );
 
-parameter IFG_CLOCKS=196;
+parameter IFG_CLOCKS=125_000;
 parameter ARP_REPEAT=3;
 
 integer s1, s1_next;
@@ -45,7 +45,7 @@ reg [2:0] sync;
 reg [7:0] pkt_cnt;
 reg [7:0] byte_cnt;
 
-reg [15:0] ifg_cnt;
+reg [23:0] ifg_cnt;
 reg [6:0] read_offset;
 reg [6:0] write_offset;
 
